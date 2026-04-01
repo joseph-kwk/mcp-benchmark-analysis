@@ -1,0 +1,23 @@
+# MCP Benchmarking Framework - Additional Dependencies
+# Add these to your existing pyproject.toml or install separately
+
+# Statistical analysis
+scipy>=1.11.0
+pandas>=2.1.0  
+numpy>=1.24.0
+
+# LLM Provider Integration (when ready)
+openai>=1.0.0      # For GPT-4o testing  
+anthropic>=0.21.0  # For Claude 3.5 testing
+
+# Async support and utilities
+aiohttp>=3.8.0
+asyncio-throttle>=1.0.2
+
+# Data visualization (optional - for research plots)
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Development and testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0

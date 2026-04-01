@@ -1,10 +1,28 @@
 [project]
 name = "mcp-agri-project"
 version = "0.1.0"
-description = "Add your description here"
+description = "MCP vs Traditional Function Calling Benchmarking Study - Academic Research Project"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "fastmcp>=2.14.5",
     "mcp>=1.26.0",
+    # Statistical analysis and benchmarking
+    "scipy>=1.11.0",
+    "pandas>=2.1.0",
+    "numpy>=1.24.0",
+    # LLM Provider Integration  
+    "openai>=1.0.0",
+    "anthropic>=0.21.0",
+    # Async support
+    "aiohttp>=3.8.0",
+    # Development and testing
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+]
+
+[project.optional-dependencies]
+visualization = [
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
 ]
