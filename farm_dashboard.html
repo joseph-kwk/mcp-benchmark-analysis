@@ -3,8 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🌾 Mini Farm Dashboard - MCP Agriculture Project</title>
+    <title>Mini Farm Dashboard - MCP Agriculture Project</title>
     <style>
+        :root {
+            /* Light theme colors */
+            --bg-primary: #f8f9fa;
+            --bg-secondary: #e9ecef;
+            --bg-card: #ffffff;
+            --bg-accent: #f8fafc;
+            --text-primary: #1a202c;
+            --text-secondary: #4a5568;
+            --text-muted: #718096;
+            --border-color: #e2e8f0;
+            --border-hover: rgba(99, 102, 241, 0.3);
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12);
+            --field-warning-start: #f59e0b;
+            --field-warning-end: #fbbf24;
+            --field-critical-start: #ef4444;
+            --field-critical-end: #f87171;
+            --field-healthy-start: #10b981;
+            --field-healthy-end: #34d399;
+        }
+
+        [data-theme="dark"] {
+            /* Dark theme colors */
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-card: #1e293b;
+            --bg-accent: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+            --border-hover: rgba(139, 92, 246, 0.4);
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+            --field-warning-start: #f59e0b;
+            --field-warning-end: #fbbf24;
+            --field-critical-start: #dc2626;
+            --field-critical-end: #ef4444;
+            --field-healthy-start: #059669;
+            --field-healthy-end: #10b981;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -12,159 +54,220 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(to bottom, var(--bg-primary), var(--bg-secondary));
+            color: var(--text-primary);
             overflow-x: hidden;
+            line-height: 1.6;
+            transition: background 0.3s ease, color 0.3s ease;
         }
 
         /* Header */
         .header {
-            background: rgba(0, 0, 0, 0.3);
-            backdrop-filter: blur(10px);
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            background: var(--bg-card);
+            padding: 24px 32px;
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 32px;
+            transition: background 0.3s ease, border-color 0.3s ease;
         }
 
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            background: linear-gradient(45deg, #FFD700, #FFA500);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+        .header-content h1 {
+            font-size: 2em;
+            margin-bottom: 6px;
+            color: var(--text-primary);
+            font-weight: 700;
+            letter-spacing: -0.02em;
         }
 
-        .header p {
+        .header-content p {
+            font-size: 0.95em;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .data-flow {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            padding: 12px 20px;
+            background: var(--bg-accent);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .data-flow-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .data-flow-arrow {
+            color: #6366f1;
+            font-weight: 700;
             font-size: 1.2em;
-            opacity: 0.9;
+        }
+
+        .data-flow-label {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .data-flow-tech {
+            color: #10b981;
+            font-weight: 600;
+            font-family: 'SF Mono', 'Monaco', monospace;
+        }
+
+        .theme-toggle {
+            background: var(--bg-accent);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: var(--text-secondary);
+            font-size: 0.95em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .theme-toggle:hover {
+            background: var(--bg-secondary);
+            border-color: var(--border-hover);
         }
 
         /* Main Dashboard */
         .dashboard {
             display: grid;
-            grid-template-columns: 1fr 350px;
-            gap: 20px;
-            padding: 20px;
+            grid-template-columns: 1fr 380px;
+            gap: 24px;
+            padding: 24px;
+            max-width: 1600px;
+            margin: 0 auto;
             min-height: calc(100vh - 140px);
         }
 
         /* Farm Area */
         .farm-area {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            padding: 20px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
+            transition: background 0.3s ease, border-color 0.3s ease;
         }
 
         .farm-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
+            gap: 16px;
             height: 400px;
-            margin-bottom: 20px;
+            margin-bottom: 24px;
         }
 
         .field {
-            border-radius: 15px;
-            padding: 20px;
+            border-radius: 12px;
+            padding: 24px;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             text-align: center;
-            transition: all 0.3s ease;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
             cursor: pointer;
             position: relative;
             overflow: hidden;
-        }
-
-        .field::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-            transform: rotate(45deg);
-            transition: all 0.3s ease;
-            opacity: 0;
-        }
-
-        .field:hover::before {
-            opacity: 1;
-            animation: shimmer 1.5s ease-in-out;
-        }
-
-        @keyframes shimmer {
-            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
-            100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+            border: 2px solid transparent;
         }
 
         .field:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            border-color: var(--border-hover);
         }
 
         .field-healthy {
-            background: linear-gradient(135deg, #4CAF50, #81C784);
+            background: linear-gradient(135deg, var(--field-healthy-start) 0%, var(--field-healthy-end) 100%);
+            color: white;
         }
 
         .field-warning {
-            background: linear-gradient(135deg, #FF9800, #FFB74D);
+            background: linear-gradient(135deg, var(--field-warning-start) 0%, var(--field-warning-end) 100%);
+            color: white;
         }
 
         .field-critical {
-            background: linear-gradient(135deg, #F44336, #EF5350);
+            background: linear-gradient(135deg, var(--field-critical-start) 0%, var(--field-critical-end) 100%);
+            color: white;
         }
 
         .field h3 {
-            font-size: 1.5em;
-            margin-bottom: 10px;
+            font-size: 1.25em;
+            margin-bottom: 8px;
+            font-weight: 600;
+            letter-spacing: -0.01em;
         }
 
         .field .crop {
-            font-size: 1.1em;
-            margin-bottom: 15px;
+            font-size: 0.95em;
+            margin-bottom: 16px;
             opacity: 0.9;
+            font-weight: 400;
         }
 
         .field .moisture {
-            font-size: 2em;
-            font-weight: bold;
-            margin-bottom: 10px;
+            font-size: 2.5em;
+            font-weight: 700;
+            margin-bottom: 12px;
+            letter-spacing: -0.02em;
         }
 
         .field .status {
-            padding: 5px 15px;
+            padding: 6px 16px;
             border-radius: 20px;
-            background: rgba(255, 255, 255, 0.2);
-            font-size: 0.9em;
+            background: rgba(255, 255, 255, 0.25);
+            font-size: 0.85em;
+            font-weight: 500;
+            backdrop-filter: blur(10px);
         }
 
         /* Weather Section */
         .weather {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 15px;
-            padding: 15px;
-            margin-bottom: 20px;
+            background: var(--bg-accent);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+            border: 1px solid var(--border-color);
+            transition: background 0.3s ease, border-color 0.3s ease;
         }
 
         .weather h3 {
-            margin-bottom: 15px;
-            color: #FFD700;
+            margin-bottom: 16px;
+            color: var(--text-primary);
+            font-size: 1.1em;
+            font-weight: 600;
         }
 
         .weather-day {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.9em;
+            color: var(--text-secondary);
         }
 
         .weather-day:last-child {
@@ -173,124 +276,209 @@
 
         /* Control Panel */
         .control-panel {
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 20px;
-            padding: 20px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
             height: fit-content;
+            transition: background 0.3s ease, border-color 0.3s ease;
         }
 
         .control-section {
-            margin-bottom: 25px;
+            margin-bottom: 28px;
         }
 
         .control-section h3 {
-            color: #FFD700;
-            margin-bottom: 15px;
-            font-size: 1.2em;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            font-size: 1.05em;
+            font-weight: 600;
+            letter-spacing: -0.01em;
         }
 
         .btn {
             width: 100%;
-            padding: 12px;
-            margin: 8px 0;
+            padding: 12px 16px;
+            margin: 6px 0;
             border: none;
-            border-radius: 10px;
-            font-size: 1em;
+            border-radius: 8px;
+            font-size: 0.95em;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             font-weight: 500;
+            letter-spacing: -0.01em;
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: #6366f1;
             color: white;
+        }
+
+        .btn-primary:hover {
+            background: #4f46e5;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
         }
 
         .btn-success {
-            background: linear-gradient(135deg, #4CAF50, #45a049);
+            background: #10b981;
             color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
         }
 
         .btn-warning {
-            background: linear-gradient(135deg, #FF9800, #f57c00);
+            background: #f59e0b;
             color: white;
+        }
+
+        .btn-warning:hover {
+            background: #d97706;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25);
         }
 
         .btn-danger {
-            background: linear-gradient(135deg, #F44336, #d32f2f);
+            background: #ef4444;
             color: white;
         }
 
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        .btn-danger:hover {
+            background: #dc2626;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
         }
 
         /* Performance Comparison */
         .performance {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 10px;
+            gap: 12px;
         }
 
         .performance-card {
-            padding: 15px;
+            padding: 16px;
             border-radius: 10px;
             text-align: center;
+            border: 2px solid;
         }
 
         .mcp-card {
-            background: linear-gradient(135deg, #4CAF50, #45a049);
+            background: #ecfdf5;
+            border-color: #10b981;
+            color: #065f46;
         }
 
         .traditional-card {
-            background: linear-gradient(135deg, #FF9800, #f57c00);
+            background: #fef3c7;
+            border-color: #f59e0b;
+            color: #92400e;
+        }
+
+        .performance-card > div:first-child {
+            font-size: 0.8em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+            opacity: 0.9;
         }
 
         .performance-metric {
-            font-size: 1.5em;
-            font-weight: bold;
-            margin-bottom: 5px;
+            font-size: 1.75em;
+            font-weight: 700;
+            margin-bottom: 4px;
+            letter-spacing: -0.02em;
+        }
+
+        .performance-card > div:last-child {
+            font-size: 0.85em;
+            opacity: 0.8;
         }
 
         /* Activity Log */
         .activity-log {
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 10px;
-            padding: 15px;
+            background: var(--bg-accent);
+            border-radius: 8px;
+            padding: 16px;
             height: 200px;
             overflow-y: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9em;
+            font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+            font-size: 0.85em;
+            border: 1px solid var(--border-color);
+            transition: background 0.3s ease, border-color 0.3s ease;
         }
 
         .log-entry {
-            margin-bottom: 8px;
-            padding: 5px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
         }
 
         .log-time {
-            color: #FFD700;
+            color: #6366f1;
             margin-right: 10px;
+            font-weight: 600;
         }
 
         /* Select Dropdown */
         select {
             width: 100%;
-            padding: 10px;
-            border-radius: 5px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            font-size: 1em;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 0.95em;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        select:hover {
+            border-color: #6366f1;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
         }
 
         select option {
-            background: #333;
-            color: white;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            padding: 8px;
+        }
+
+        /* Scrollbar Styling */
+        .activity-log::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .activity-log::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 3px;
+        }
+
+        .activity-log::-webkit-scrollbar-thumb {
+            background: #cbd5e0;
+            border-radius: 3px;
+        }
+
+        .activity-log::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
         }
 
         /* Responsive Design */
@@ -307,41 +495,72 @@
             .performance {
                 grid-template-columns: 1fr;
             }
+
+            .header h1 {
+                font-size: 1.5em;
+            }
+
+            .header p {
+                font-size: 0.85em;
+            }
         }
     </style>
 </head>
 <body>
     <header class="header">
-        <h1>🌾 Mini Farm Dashboard</h1>
-        <p>MCP vs Traditional Function Calling Comparison | Spring 2026 Senior Project</p>
+        <div class="header-content">
+            <h1>Mini Farm Dashboard</h1>
+            <p>MCP vs Traditional Function Calling Comparison • Spring 2026 Senior Project</p>
+        </div>
+        
+        <div class="data-flow">
+            <div class="data-flow-item">
+                <span class="data-flow-label">Data Source:</span>
+                <span class="data-flow-tech">FastMCP Server</span>
+            </div>
+            <span class="data-flow-arrow">→</span>
+            <div class="data-flow-item">
+                <span class="data-flow-label">Protocol:</span>
+                <span class="data-flow-tech">MCP/STDIO</span>
+            </div>
+            <span class="data-flow-arrow">→</span>
+            <div class="data-flow-item">
+                <span class="data-flow-label">UI</span>
+            </div>
+        </div>
+        
+        <button class="theme-toggle" onclick="toggleTheme()">
+            <span id="theme-icon">🌙</span>
+            <span id="theme-text">Dark Mode</span>
+        </button>
     </header>
 
     <main class="dashboard">
         <div class="farm-area">
             <div class="farm-grid">
-                <div class="field field-critical" id="field-a">
-                    <h3>🌽 Field A</h3>
+                <div class="field field-warning" id="field-a">
+                    <h3>Field A</h3>
                     <div class="crop">Corn</div>
                     <div class="moisture">12%</div>
                     <div class="status">Needs Irrigation</div>
                 </div>
                 
                 <div class="field field-healthy" id="field-b">
-                    <h3>🌾 Field B</h3>
+                    <h3>Field B</h3>
                     <div class="crop">Wheat</div>
                     <div class="moisture">28%</div>
                     <div class="status">Healthy</div>
                 </div>
                 
                 <div class="field field-critical" id="field-c">
-                    <h3>🌱 Field C</h3>
+                    <h3>Field C</h3>
                     <div class="crop">Soybean</div>
                     <div class="moisture">8%</div>
                     <div class="status">Critical</div>
                 </div>
                 
                 <div class="field field-healthy" id="field-d">
-                    <h3>🌽 Field D</h3>
+                    <h3>Field D</h3>
                     <div class="crop">Corn</div>
                     <div class="moisture">45%</div>
                     <div class="status">Healthy</div>
@@ -349,25 +568,25 @@
             </div>
 
             <div class="weather">
-                <h3>🌦️ Weather Forecast</h3>
+                <h3>Weather Forecast</h3>
                 <div class="weather-day">
-                    <span>Day 1: ☀️ Sunny</span>
-                    <span>78°F (10% rain)</span>
+                    <span>Day 1: Sunny</span>
+                    <span>78°F • 10% rain</span>
                 </div>
                 <div class="weather-day">
-                    <span>Day 2: ☁️ Cloudy</span>
-                    <span>72°F (40% rain)</span>
+                    <span>Day 2: Cloudy</span>
+                    <span>72°F • 40% rain</span>
                 </div>
                 <div class="weather-day">
-                    <span>Day 3: 🌧️ Rain</span>
-                    <span>65°F (80% rain)</span>
+                    <span>Day 3: Rain</span>
+                    <span>65°F • 80% rain</span>
                 </div>
             </div>
         </div>
 
         <div class="control-panel">
             <div class="control-section">
-                <h3>🎛️ Farm Controls</h3>
+                <h3>Farm Controls</h3>
                 <select id="field-select">
                     <option value="field-a">Field A (Corn)</option>
                     <option value="field-b">Field B (Wheat)</option>
@@ -375,22 +594,22 @@
                     <option value="field-d">Field D (Corn)</option>
                 </select>
                 
-                <button class="btn btn-primary" onclick="checkIrrigation()">💧 Check Irrigation</button>
-                <button class="btn btn-success" onclick="getFieldStatus()">📊 Field Status</button>
-                <button class="btn btn-warning" onclick="updateWeather()">🌦️ Update Weather</button>
-                <button class="btn btn-danger" onclick="runBenchmark()">🔄 Run Benchmark</button>
+                <button class="btn btn-primary" onclick="checkIrrigation()">Check Irrigation</button>
+                <button class="btn btn-success" onclick="getFieldStatus()">Field Status</button>
+                <button class="btn btn-warning" onclick="updateWeather()">Update Weather</button>
+                <button class="btn btn-danger" onclick="runBenchmark()">Run Benchmark</button>
             </div>
 
             <div class="control-section">
-                <h3>📈 System Performance</h3>
+                <h3>System Performance</h3>
                 <div class="performance">
                     <div class="performance-card mcp-card">
-                        <div>🚀 MCP Protocol</div>
+                        <div>MCP Protocol</div>
                         <div class="performance-metric" id="mcp-success">98.5%</div>
                         <div id="mcp-time">Avg: 245ms</div>
                     </div>
                     <div class="performance-card traditional-card">
-                        <div>⚙️ Traditional</div>
+                        <div>Traditional</div>
                         <div class="performance-metric" id="trad-success">94.2%</div>
                         <div id="trad-time">Avg: 312ms</div>
                     </div>
@@ -398,19 +617,19 @@
             </div>
 
             <div class="control-section">
-                <h3>📝 Activity Log</h3>
+                <h3>Activity Log</h3>
                 <div class="activity-log" id="activity-log">
                     <div class="log-entry">
                         <span class="log-time">15:30:45</span>
-                        🌾 Mini Farm System Initialized
+                        System initialized successfully
                     </div>
                     <div class="log-entry">
                         <span class="log-time">15:30:46</span>
-                        🔌 MCP Server Connected
+                        MCP server connected
                     </div>
                     <div class="log-entry">
                         <span class="log-time">15:30:47</span>
-                        📡 Sensors Online - 4 fields detected
+                        Sensors online - 4 fields detected
                     </div>
                 </div>
             </div>
@@ -418,6 +637,39 @@
     </main>
 
     <script>
+        // Theme Management
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            
+            // Update button text and icon
+            const themeIcon = document.getElementById('theme-icon');
+            const themeText = document.getElementById('theme-text');
+            
+            if (newTheme === 'dark') {
+                themeIcon.textContent = '☀️';
+                themeText.textContent = 'Light Mode';
+            } else {
+                themeIcon.textContent = '🌙';
+                themeText.textContent = 'Dark Mode';
+            }
+        }
+
+        // Load saved theme on page load
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            
+            if (savedTheme === 'dark') {
+                document.getElementById('theme-icon').textContent = '☀️';
+                document.getElementById('theme-text').textContent = 'Light Mode';
+            }
+        })();
+
         // Field data
         const fieldsData = {
             'field-a': { name: 'Field A', crop: 'Corn', moisture: 12, status: 'needs_irrigation' },
@@ -442,15 +694,15 @@
             const selectedField = document.getElementById('field-select').value;
             const fieldData = fieldsData[selectedField];
             
-            logActivity(`💧 Checking irrigation for ${fieldData.name}`);
+            logActivity(`Checking irrigation for ${fieldData.name}`);
             
             setTimeout(() => {
                 if (fieldData.moisture < 15) {
-                    logActivity(`🚨 ${fieldData.name}: URGENT - Irrigate immediately (600 gal/acre)`);
+                    logActivity(`[URGENT] ${fieldData.name}: Irrigate immediately (600 gal/acre)`);
                 } else if (fieldData.moisture < 30) {
-                    logActivity(`⚠️ ${fieldData.name}: Irrigate soon (300 gal/acre)`);
+                    logActivity(`[WARNING] ${fieldData.name}: Irrigate soon (300 gal/acre)`);
                 } else {
-                    logActivity(`✅ ${fieldData.name}: No irrigation needed`);
+                    logActivity(`[OK] ${fieldData.name}: No irrigation needed`);
                 }
             }, 500);
         }
@@ -460,29 +712,29 @@
             const selectedField = document.getElementById('field-select').value;
             const fieldData = fieldsData[selectedField];
             
-            logActivity(`📊 Retrieving status for ${fieldData.name}`);
+            logActivity(`Retrieving status for ${fieldData.name}`);
             
             setTimeout(() => {
                 const statusMsg = `${fieldData.name}: ${fieldData.crop} | ${fieldData.moisture}% moisture | Status: ${fieldData.status.replace('_', ' ')}`;
-                logActivity(`📋 ${statusMsg}`);
+                logActivity(statusMsg);
             }, 300);
         }
 
         // Update weather
         function updateWeather() {
-            logActivity('🌦️ Updating weather forecast...');
+            logActivity('Updating weather forecast...');
             
             setTimeout(() => {
-                logActivity('✅ Weather forecast updated');
+                logActivity('Weather forecast updated');
             }, 400);
         }
 
         // Run benchmark
         function runBenchmark() {
-            logActivity('🔄 Running MCP vs Traditional benchmark...');
+            logActivity('Running MCP vs Traditional benchmark...');
             
             setTimeout(() => {
-                logActivity('📈 Benchmark complete!');
+                logActivity('Benchmark complete');
             }, 2000);
             
             setTimeout(() => {
@@ -490,9 +742,9 @@
                 const tradTime = 280 + Math.random() * 120;
                 const improvement = ((tradTime - mcpTime) / tradTime * 100).toFixed(1);
                 
-                logActivity(`🚀 MCP: ${mcpTime.toFixed(0)}ms avg`);
-                logActivity(`⚙️ Traditional: ${tradTime.toFixed(0)}ms avg`);
-                logActivity(`🎯 Performance improvement: ${improvement}%`);
+                logActivity(`MCP: ${mcpTime.toFixed(0)}ms avg`);
+                logActivity(`Traditional: ${tradTime.toFixed(0)}ms avg`);
+                logActivity(`Performance improvement: ${improvement}%`);
                 
                 // Update performance cards
                 document.getElementById('mcp-time').textContent = `Avg: ${mcpTime.toFixed(0)}ms`;
@@ -505,7 +757,7 @@
             field.addEventListener('click', () => {
                 const fieldId = field.id;
                 const fieldData = fieldsData[fieldId];
-                logActivity(`🌱 Selected ${fieldData.name} - ${fieldData.crop} field`);
+                logActivity(`Selected ${fieldData.name} - ${fieldData.crop} field`);
                 document.getElementById('field-select').value = fieldId;
             });
         });
@@ -524,9 +776,9 @@
                 
                 // Update field color based on moisture
                 fieldElement.className = 'field ';
-                if (field.moisture < 15) {
+                if (field.moisture < 10) {
                     fieldElement.className += 'field-critical';
-                } else if (field.moisture < 30) {
+                } else if (field.moisture < 20) {
                     fieldElement.className += 'field-warning';
                 } else {
                     fieldElement.className += 'field-healthy';
