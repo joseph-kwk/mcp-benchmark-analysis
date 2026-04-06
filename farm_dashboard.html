@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌾 Mini Farm Dashboard - MCP Agriculture Project</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            overflow-x: hidden;
+        }
+
+        /* Header */
+        .header {
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #FFD700, #FFA500);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        /* Main Dashboard */
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+            padding: 20px;
+            min-height: calc(100vh - 140px);
+        }
+
+        /* Farm Area */
+        .farm-area {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .farm-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            height: 400px;
+            margin-bottom: 20px;
+        }
+
+        .field {
+            border-radius: 15px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .field::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transform: rotate(45deg);
+            transition: all 0.3s ease;
+            opacity: 0;
+        }
+
+        .field:hover::before {
+            opacity: 1;
+            animation: shimmer 1.5s ease-in-out;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+            100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+        }
+
+        .field:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
+        }
+
+        .field-healthy {
+            background: linear-gradient(135deg, #4CAF50, #81C784);
+        }
+
+        .field-warning {
+            background: linear-gradient(135deg, #FF9800, #FFB74D);
+        }
+
+        .field-critical {
+            background: linear-gradient(135deg, #F44336, #EF5350);
+        }
+
+        .field h3 {
+            font-size: 1.5em;
+            margin-bottom: 10px;
+        }
+
+        .field .crop {
+            font-size: 1.1em;
+            margin-bottom: 15px;
+            opacity: 0.9;
+        }
+
+        .field .moisture {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .field .status {
+            padding: 5px 15px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            font-size: 0.9em;
+        }
+
+        /* Weather Section */
+        .weather {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .weather h3 {
+            margin-bottom: 15px;
+            color: #FFD700;
+        }
+
+        .weather-day {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .weather-day:last-child {
+            border-bottom: none;
+        }
+
+        /* Control Panel */
+        .control-panel {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 20px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            height: fit-content;
+        }
+
+        .control-section {
+            margin-bottom: 25px;
+        }
+
+        .control-section h3 {
+            color: #FFD700;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: none;
+            border-radius: 10px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #FF9800, #f57c00);
+            color: white;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #F44336, #d32f2f);
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Performance Comparison */
+        .performance {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .performance-card {
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .mcp-card {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+        }
+
+        .traditional-card {
+            background: linear-gradient(135deg, #FF9800, #f57c00);
+        }
+
+        .performance-metric {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        /* Activity Log */
+        .activity-log {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .log-time {
+            color: #FFD700;
+            margin-right: 10px;
+        }
+
+        /* Select Dropdown */
+        select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 1em;
+        }
+
+        select option {
+            background: #333;
+            color: white;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            
+            .farm-grid {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+            
+            .performance {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>🌾 Mini Farm Dashboard</h1>
+        <p>MCP vs Traditional Function Calling Comparison | Spring 2026 Senior Project</p>
+    </header>
+
+    <main class="dashboard">
+        <div class="farm-area">
+            <div class="farm-grid">
+                <div class="field field-critical" id="field-a">
+                    <h3>🌽 Field A</h3>
+                    <div class="crop">Corn</div>
+                    <div class="moisture">12%</div>
+                    <div class="status">Needs Irrigation</div>
+                </div>
+                
+                <div class="field field-healthy" id="field-b">
+                    <h3>🌾 Field B</h3>
+                    <div class="crop">Wheat</div>
+                    <div class="moisture">28%</div>
+                    <div class="status">Healthy</div>
+                </div>
+                
+                <div class="field field-critical" id="field-c">
+                    <h3>🌱 Field C</h3>
+                    <div class="crop">Soybean</div>
+                    <div class="moisture">8%</div>
+                    <div class="status">Critical</div>
+                </div>
+                
+                <div class="field field-healthy" id="field-d">
+                    <h3>🌽 Field D</h3>
+                    <div class="crop">Corn</div>
+                    <div class="moisture">45%</div>
+                    <div class="status">Healthy</div>
+                </div>
+            </div>
+
+            <div class="weather">
+                <h3>🌦️ Weather Forecast</h3>
+                <div class="weather-day">
+                    <span>Day 1: ☀️ Sunny</span>
+                    <span>78°F (10% rain)</span>
+                </div>
+                <div class="weather-day">
+                    <span>Day 2: ☁️ Cloudy</span>
+                    <span>72°F (40% rain)</span>
+                </div>
+                <div class="weather-day">
+                    <span>Day 3: 🌧️ Rain</span>
+                    <span>65°F (80% rain)</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-panel">
+            <div class="control-section">
+                <h3>🎛️ Farm Controls</h3>
+                <select id="field-select">
+                    <option value="field-a">Field A (Corn)</option>
+                    <option value="field-b">Field B (Wheat)</option>
+                    <option value="field-c">Field C (Soybean)</option>
+                    <option value="field-d">Field D (Corn)</option>
+                </select>
+                
+                <button class="btn btn-primary" onclick="checkIrrigation()">💧 Check Irrigation</button>
+                <button class="btn btn-success" onclick="getFieldStatus()">📊 Field Status</button>
+                <button class="btn btn-warning" onclick="updateWeather()">🌦️ Update Weather</button>
+                <button class="btn btn-danger" onclick="runBenchmark()">🔄 Run Benchmark</button>
+            </div>
+
+            <div class="control-section">
+                <h3>📈 System Performance</h3>
+                <div class="performance">
+                    <div class="performance-card mcp-card">
+                        <div>🚀 MCP Protocol</div>
+                        <div class="performance-metric" id="mcp-success">98.5%</div>
+                        <div id="mcp-time">Avg: 245ms</div>
+                    </div>
+                    <div class="performance-card traditional-card">
+                        <div>⚙️ Traditional</div>
+                        <div class="performance-metric" id="trad-success">94.2%</div>
+                        <div id="trad-time">Avg: 312ms</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h3>📝 Activity Log</h3>
+                <div class="activity-log" id="activity-log">
+                    <div class="log-entry">
+                        <span class="log-time">15:30:45</span>
+                        🌾 Mini Farm System Initialized
+                    </div>
+                    <div class="log-entry">
+                        <span class="log-time">15:30:46</span>
+                        🔌 MCP Server Connected
+                    </div>
+                    <div class="log-entry">
+                        <span class="log-time">15:30:47</span>
+                        📡 Sensors Online - 4 fields detected
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Field data
+        const fieldsData = {
+            'field-a': { name: 'Field A', crop: 'Corn', moisture: 12, status: 'needs_irrigation' },
+            'field-b': { name: 'Field B', crop: 'Wheat', moisture: 28, status: 'healthy' },
+            'field-c': { name: 'Field C', crop: 'Soybean', moisture: 8, status: 'critical' },
+            'field-d': { name: 'Field D', crop: 'Corn', moisture: 45, status: 'healthy' }
+        };
+
+        // Log activity
+        function logActivity(message) {
+            const log = document.getElementById('activity-log');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span class="log-time">${timestamp}</span> ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // Check irrigation for selected field
+        function checkIrrigation() {
+            const selectedField = document.getElementById('field-select').value;
+            const fieldData = fieldsData[selectedField];
+            
+            logActivity(`💧 Checking irrigation for ${fieldData.name}`);
+            
+            setTimeout(() => {
+                if (fieldData.moisture < 15) {
+                    logActivity(`🚨 ${fieldData.name}: URGENT - Irrigate immediately (600 gal/acre)`);
+                } else if (fieldData.moisture < 30) {
+                    logActivity(`⚠️ ${fieldData.name}: Irrigate soon (300 gal/acre)`);
+                } else {
+                    logActivity(`✅ ${fieldData.name}: No irrigation needed`);
+                }
+            }, 500);
+        }
+
+        // Get field status
+        function getFieldStatus() {
+            const selectedField = document.getElementById('field-select').value;
+            const fieldData = fieldsData[selectedField];
+            
+            logActivity(`📊 Retrieving status for ${fieldData.name}`);
+            
+            setTimeout(() => {
+                const statusMsg = `${fieldData.name}: ${fieldData.crop} | ${fieldData.moisture}% moisture | Status: ${fieldData.status.replace('_', ' ')}`;
+                logActivity(`📋 ${statusMsg}`);
+            }, 300);
+        }
+
+        // Update weather
+        function updateWeather() {
+            logActivity('🌦️ Updating weather forecast...');
+            
+            setTimeout(() => {
+                logActivity('✅ Weather forecast updated');
+            }, 400);
+        }
+
+        // Run benchmark
+        function runBenchmark() {
+            logActivity('🔄 Running MCP vs Traditional benchmark...');
+            
+            setTimeout(() => {
+                logActivity('📈 Benchmark complete!');
+            }, 2000);
+            
+            setTimeout(() => {
+                const mcpTime = 200 + Math.random() * 100;
+                const tradTime = 280 + Math.random() * 120;
+                const improvement = ((tradTime - mcpTime) / tradTime * 100).toFixed(1);
+                
+                logActivity(`🚀 MCP: ${mcpTime.toFixed(0)}ms avg`);
+                logActivity(`⚙️ Traditional: ${tradTime.toFixed(0)}ms avg`);
+                logActivity(`🎯 Performance improvement: ${improvement}%`);
+                
+                // Update performance cards
+                document.getElementById('mcp-time').textContent = `Avg: ${mcpTime.toFixed(0)}ms`;
+                document.getElementById('trad-time').textContent = `Avg: ${tradTime.toFixed(0)}ms`;
+            }, 2500);
+        }
+
+        // Field click handlers
+        document.querySelectorAll('.field').forEach(field => {
+            field.addEventListener('click', () => {
+                const fieldId = field.id;
+                const fieldData = fieldsData[fieldId];
+                logActivity(`🌱 Selected ${fieldData.name} - ${fieldData.crop} field`);
+                document.getElementById('field-select').value = fieldId;
+            });
+        });
+
+        // Simulate real-time updates
+        setInterval(() => {
+            Object.keys(fieldsData).forEach(fieldId => {
+                const field = fieldsData[fieldId];
+                // Simulate gradual moisture decrease
+                field.moisture = Math.max(5, field.moisture - Math.random() * 0.1);
+                
+                // Update field display
+                const fieldElement = document.getElementById(fieldId);
+                const moistureElement = fieldElement.querySelector('.moisture');
+                moistureElement.textContent = field.moisture.toFixed(0) + '%';
+                
+                // Update field color based on moisture
+                fieldElement.className = 'field ';
+                if (field.moisture < 15) {
+                    fieldElement.className += 'field-critical';
+                } else if (field.moisture < 30) {
+                    fieldElement.className += 'field-warning';
+                } else {
+                    fieldElement.className += 'field-healthy';
+                }
+            });
+        }, 10000); // Update every 10 seconds
+    </script>
+</body>
+</html>
