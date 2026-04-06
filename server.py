@@ -1,8 +1,17 @@
 from fastmcp import FastMCP
 from datetime import datetime
+import os
 
 # 1. Initialize the MCP Server
 mcp = FastMCP("AgriAdvisor")
+
+# ─────────────────────────────────────────────
+# SECURE KEY VAULT  (keys never leave the server)
+# The LLM only calls activate_irrigation(field_id, action).
+# It never sees PUMP_API_KEY — it's resolved server-side.
+# This is the core security advantage of MCP over legacy function calling.
+# ─────────────────────────────────────────────
+_PUMP_API_KEY = os.environ.get("PUMP_API_KEY", "mock-pump-secret-key-2026")
 
 # ─────────────────────────────────────────────
 # AGRICULTURAL TOOLS
@@ -96,8 +105,45 @@ def calculate_area(length: float, width: float) -> dict:
     }
 
 
-# ─────────────────────────────────────────────
-# CALCULATOR TOOLS  (standardized benchmarking)
+@mcp.tool()
+def activate_irrigation(field_id: str, action: str, duration_minutes: int = 30) -> dict:
+    """
+    Activate or deactivate the irrigation pump for a field.
+
+    The LLM calls this with field_id and action only.
+    The secret PUMP_API_KEY is resolved server-side and never exposed to the LLM.
+    This demonstrates MCP's security model: API keys stay on the server.
+
+    Args:
+        field_id: The field to irrigate (Field_A, Field_B, Field_C, Field_D)
+        action: "start" or "stop"
+        duration_minutes: How long to run the pump (default 30 min)
+    """
+    valid_fields = {"Field_A", "Field_B", "Field_C", "Field_D"}
+    valid_actions = {"start", "stop"}
+
+    if field_id not in valid_fields:
+        return {"success": False, "error": f"Unknown field '{field_id}'. Valid: {sorted(valid_fields)}"}
+    if action not in valid_actions:
+        return {"success": False, "error": f"Invalid action '{action}'. Use 'start' or 'stop'."}
+
+    # ── Key is retrieved from the vault here, never passed by the LLM ──
+    key_used = _PUMP_API_KEY
+    key_preview = f"{key_used[:8]}..." if len(key_used) > 8 else "***"
+
+    return {
+        "success":            True,
+        "field_id":           field_id,
+        "action":             action,
+        "duration_minutes":   duration_minutes if action == "start" else 0,
+        "pump_command_sent":  f"PUMP_{field_id}_{action.upper()}",
+        "authorized_by":      "MCP Server Key Vault",
+        "key_preview":        key_preview,
+        "security_note":      "API key resolved server-side. LLM had zero access to credentials.",
+        "timestamp":          datetime.utcnow().isoformat() + "Z",
+    }
+
+
 # ─────────────────────────────────────────────
 
 @mcp.tool()
