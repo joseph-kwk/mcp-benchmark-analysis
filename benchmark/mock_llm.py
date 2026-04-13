@@ -141,7 +141,10 @@ class MockLLMClient:
 
         # Simulate network + model latency
         latency = _sample_latency(self.provider, self.rng)
-        time.sleep(latency / 1000.0)          # actually wait so timing is real
+        # Only actually wait in real-API mode; in mock mode the value is recorded
+        # but we don't burn real time sleeping through 1000+ ms per trial.
+        if USE_REAL_APIS:
+            time.sleep(latency / 1000.0)
 
         prompt_tokens, completion_tokens = _sample_tokens(self.provider, self.rng)
 

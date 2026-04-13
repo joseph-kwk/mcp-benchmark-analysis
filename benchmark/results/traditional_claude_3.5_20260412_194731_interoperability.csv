@@ -1,0 +1,4 @@
+protocol_type,llm_provider,scenario_id,code_changes_required,setup_complexity,config_changes,compatibility_score,notes
+traditional,claude_3.5,S1,15,6,5,0.0,Provider-specific schemas and integration code required
+traditional,claude_3.5,S2,15,6,5,0.0,Provider-specific schemas and integration code required
+traditional,claude_3.5,S3,15,6,5,0.0,Provider-specific schemas and integration code required

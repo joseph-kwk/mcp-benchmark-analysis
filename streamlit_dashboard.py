@@ -19,6 +19,7 @@ import time
 import random
 import sys
 import os
+from pathlib import Path
 import streamlit as st
 import pandas as pd
 import altair as alt
@@ -247,6 +248,14 @@ if run_clicked:
 
     st.session_state.trial_count += trials_per_run
     progress.empty()
+
+    # Auto-save results to benchmark/results/ after every run
+    _results_dir = Path("benchmark/results")
+    _results_dir.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(st.session_state.history).to_csv(
+        _results_dir / "streamlit_results.csv", index=False
+    )
+
     st.rerun()
 
 # ── Display results ────────────────────────────────────────────────────────────
@@ -377,6 +386,48 @@ tok_chart = alt.Chart(tok_data).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopR
     tooltip=["Protocol", "Avg Tokens"]
 ).properties(height=200)
 st.altair_chart(tok_chart, use_container_width=True)
+
+st.divider()
+
+# ── Statistical significance (shown once we have enough trials) ─────────────────
+_MIN_TRIALS_FOR_STATS = 10
+if len(df) >= _MIN_TRIALS_FOR_STATS:
+    st.subheader("🔬 Statistical Significance")
+    try:
+        from scipy import stats as _sp
+        import math as _math
+        _trad_lat = df["trad_latency_ms"].tolist()
+        _mcp_lat  = df["mcp_latency_ms"].tolist()
+        _t, _p    = _sp.ttest_ind(_mcp_lat, _trad_lat, equal_var=False)
+        _n1, _n2  = len(_mcp_lat), len(_trad_lat)
+        _sd1, _sd2 = df["mcp_latency_ms"].std(), df["trad_latency_ms"].std()
+        _pooled   = _math.sqrt((_sd1**2 + _sd2**2) / 2)
+        _d        = (df["mcp_latency_ms"].mean() - df["trad_latency_ms"].mean()) / _pooled if _pooled else 0
+        _sig      = _p < 0.05
+        _acc_t, _acc_p = _sp.ttest_ind(
+            df["mcp_success"].astype(float).tolist(),
+            df["trad_success"].astype(float).tolist(),
+            equal_var=False
+        )
+        sc1, sc2, sc3, sc4 = st.columns(4)
+        sc1.metric("Latency p-value",  f"{_p:.4f}", delta="Significant" if _sig else "Not sig.",
+                   delta_color="normal" if _sig else "off")
+        sc2.metric("Cohen's d (latency)", f"{_d:.3f}",
+                   delta="small" if abs(_d) < 0.5 else ("medium" if abs(_d) < 0.8 else "large"),
+                   delta_color="off")
+        sc3.metric("Accuracy p-value", f"{_acc_p:.4f}",
+                   delta="Significant" if _acc_p < 0.05 else "Not sig.",
+                   delta_color="normal" if _acc_p < 0.05 else "off")
+        sc4.metric("Trials analysed", len(df))
+        if _sig:
+            st.success(f"✅ The latency difference is **statistically significant** (p={_p:.4f} < 0.05). "
+                       f"Cohen\u2019s d = {_d:.3f} — {'small' if abs(_d)<0.5 else ('medium' if abs(_d)<0.8 else 'large')} effect.")
+        else:
+            st.info(f"ℹ️ Latency difference is **not yet significant** (p={_p:.4f}). Run more trials.")
+    except ImportError:
+        st.warning("scipy not installed — run `pip install scipy` for significance tests.")
+else:
+    st.info(f"🔬 Run at least {_MIN_TRIALS_FOR_STATS} trials to unlock statistical significance testing.")
 
 st.divider()
 

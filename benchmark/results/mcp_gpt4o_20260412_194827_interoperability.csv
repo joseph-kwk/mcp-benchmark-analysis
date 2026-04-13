@@ -1,0 +1,4 @@
+protocol_type,llm_provider,scenario_id,code_changes_required,setup_complexity,config_changes,compatibility_score,notes
+mcp,gpt4o,S1,0,2,1,0.75,Zero code changes - MCP standardized interface
+mcp,gpt4o,S2,0,2,1,0.75,Zero code changes - MCP standardized interface
+mcp,gpt4o,S3,0,2,1,0.75,Zero code changes - MCP standardized interface

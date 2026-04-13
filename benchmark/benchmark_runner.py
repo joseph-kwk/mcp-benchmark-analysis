@@ -27,6 +27,19 @@ class ExperimentalController:
     Master controller for MCP vs Traditional benchmarking experiments
     Implements the controlled experimental framework described in the research proposal
     """
+
+    # Maps test-scenario IDs to mock_llm task type keys
+    _SCENARIO_TASK_MAP = {
+        "S1": "field_status",
+        "S2": "weather_forecast",
+        "S3": "field_status",       # area calc uses same field_status tool path
+        "M1": "irrigation_check",
+        "M2": "field_status",
+        "M3": "recommend_action",
+        "C1": "field_status",
+        "C2": "irrigation_check",
+        "C3": "crop_schedule",
+    }
     
     def __init__(self, iterations_per_scenario: int = 100, results_dir: Path = None):
         self.iterations = iterations_per_scenario
@@ -174,7 +187,9 @@ class ExperimentalController:
                 
                 try:
                     # Execute via the appropriate tester (mock or real API)
-                    task_type = scenario.scenario_id  # scenario_id maps to mock_llm task types
+                    task_type = self._SCENARIO_TASK_MAP.get(
+                        scenario.scenario_id, "field_status"
+                    )
                     llm_response = tester.run_scenario(task_type)
                     execution_result = {
                         'task_completed':   llm_response.success,
@@ -190,11 +205,13 @@ class ExperimentalController:
                     }
                     
                     end_time = time.perf_counter()
-                    total_latency_ms = execution_result.get('latency_ms',
-                                          (end_time - start_time) * 1000)
-
                     # Protocol overhead: MCP JSON-RPC handshake adds ~25ms
                     protocol_overhead = 25.0 if protocol_type == "mcp" else 0.0
+                    total_latency_ms = (
+                        execution_result.get('latency_ms',
+                                             (end_time - start_time) * 1000)
+                        + protocol_overhead
+                    )
                     
                     self.metrics_collector.record_performance(
                         scenario_id=scenario.scenario_id,
@@ -358,11 +375,20 @@ class ExperimentalController:
         if 'rq2_latency' in statistical_analysis:
             latency_data = statistical_analysis['rq2_latency']
             overhead_pct = latency_data.get('protocol_overhead_pct', 0)
-            
+            p_val        = latency_data.get('p_value', None)
+            cohens_d     = latency_data.get('cohens_d', None)
+            significant  = latency_data.get('statistically_significant', False)
+
+            sig_note = ""
+            if p_val is not None:
+                sig_note = (f" (p={p_val:.4f}, {'statistically significant' if significant else 'not significant'}"
+                            + (f", Cohen's d={cohens_d:.3f}" if cohens_d is not None else "") + ")")
+
             if overhead_pct > 0:
-                conclusions['rq2'] = f"MCP introduces {overhead_pct:.1f}% latency overhead compared to traditional function calling"
+                conclusions['rq2'] = (f"MCP introduces {overhead_pct:.1f}% latency overhead compared to "
+                                      f"traditional function calling{sig_note}")
             else:
-                conclusions['rq2'] = "No significant performance penalty observed for MCP"
+                conclusions['rq2'] = f"No significant performance penalty observed for MCP{sig_note}"
         
         # RQ3: Accuracy conclusions  
         if 'rq3_accuracy' in statistical_analysis:

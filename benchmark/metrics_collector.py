@@ -11,12 +11,14 @@ This module provides:
 
 import time
 import json
+import math
 import statistics
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, asdict
 from pathlib import Path
 import csv
+from scipy import stats as scipy_stats
 
 
 @dataclass
@@ -85,7 +87,7 @@ class MetricsCollector:
     """Central metrics collection and analysis system"""
     
     def __init__(self, results_dir: Path = None):
-        self.results_dir = results_dir or Path("benchmark/results")
+        self.results_dir = results_dir or Path(__file__).parent / "results"
         self.results_dir.mkdir(exist_ok=True)
         self.current_session: Optional[BenchmarkSession] = None
     
@@ -239,7 +241,7 @@ class StatisticalAnalyzer:
     """Statistical analysis of benchmark results for research conclusions"""
     
     def __init__(self, results_dir: Path = None):
-        self.results_dir = results_dir or Path("benchmark/results")
+        self.results_dir = results_dir or Path(__file__).parent / "results"
     
     def analyze_rq2_latency(self, mcp_results: List[PerformanceMetrics], 
                            traditional_results: List[PerformanceMetrics]) -> Dict[str, Any]:
@@ -269,12 +271,52 @@ class StatisticalAnalyzer:
         # Calculate protocol overhead
         overhead_pct = ((mcp_stats['mean'] - trad_stats['mean']) / trad_stats['mean']) * 100
         
+        # ── Statistical significance (Welch's t-test, no equal-variance assumption) ──
+        t_stat, p_value = scipy_stats.ttest_ind(mcp_latencies, trad_latencies, equal_var=False)
+
+        # 95% confidence interval for the mean difference (Welch-Satterthwaite)
+        n1, n2 = mcp_stats['count'], trad_stats['count']
+        se_diff = math.sqrt(mcp_stats['std'] ** 2 / n1 + trad_stats['std'] ** 2 / n2)
+        diff_mean = mcp_stats['mean'] - trad_stats['mean']
+        df_w = se_diff ** 4 / (
+            (mcp_stats['std'] ** 2 / n1) ** 2 / (n1 - 1)
+            + (trad_stats['std'] ** 2 / n2) ** 2 / (n2 - 1)
+        )
+        t_crit = scipy_stats.t.ppf(0.975, df=df_w)
+        ci_diff_95 = (diff_mean - t_crit * se_diff, diff_mean + t_crit * se_diff)
+
+        # 95% CI for each individual mean
+        mcp_ci_95  = scipy_stats.t.interval(0.95, df=n1 - 1,
+                                             loc=mcp_stats['mean'],
+                                             scale=scipy_stats.sem(mcp_latencies))
+        trad_ci_95 = scipy_stats.t.interval(0.95, df=n2 - 1,
+                                             loc=trad_stats['mean'],
+                                             scale=scipy_stats.sem(trad_latencies))
+
+        # Cohen's d effect size
+        pooled_std = math.sqrt((mcp_stats['std'] ** 2 + trad_stats['std'] ** 2) / 2)
+        cohens_d   = diff_mean / pooled_std if pooled_std > 0 else 0.0
+        effect_magnitude = (
+            "small"  if abs(cohens_d) < 0.5 else
+            "medium" if abs(cohens_d) < 0.8 else "large"
+        )
+
         return {
-            'mcp_latency_stats': mcp_stats,
+            'mcp_latency_stats':        mcp_stats,
             'traditional_latency_stats': trad_stats,
-            'protocol_overhead_pct': overhead_pct,
-            'mean_difference_ms': mcp_stats['mean'] - trad_stats['mean'],
-            # TODO: Add t-test, confidence intervals, effect size calculations
+            'protocol_overhead_pct':     overhead_pct,
+            'mean_difference_ms':        diff_mean,
+            # Statistical significance
+            't_statistic':              round(t_stat, 4),
+            'p_value':                  round(p_value, 6),
+            'statistically_significant': p_value < 0.05,
+            # Confidence intervals
+            'mcp_ci_95':               (round(mcp_ci_95[0], 2),  round(mcp_ci_95[1], 2)),
+            'trad_ci_95':              (round(trad_ci_95[0], 2), round(trad_ci_95[1], 2)),
+            'diff_ci_95':              (round(ci_diff_95[0], 2), round(ci_diff_95[1], 2)),
+            # Effect size
+            'cohens_d':                round(cohens_d, 4),
+            'effect_magnitude':        effect_magnitude,
         }
     
     def analyze_rq1_interoperability(self, results: List[InteroperabilityMetrics]) -> Dict[str, Any]:
@@ -332,35 +374,80 @@ class StatisticalAnalyzer:
             'traditional_accuracy': calculate_accuracy_stats(trad_results)
         }
     
-    def generate_summary_report(self, session_files: List[str]) -> str:
-        """Generate comprehensive analysis report from multiple sessions"""
-        
-        # TODO: Load and combine multiple CSV files
-        # TODO: Perform cross-session statistical analysis
-        # TODO: Generate research conclusions
-        
-        report = f"""
-        MCP vs Traditional Function Calling - Benchmarking Results
-        ========================================================
-        
-        Analysis Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-        
-        RQ1: Interoperability Analysis
-        - MCP provides X% better cross-LLM compatibility
-        - Code changes required: MCP avg vs Traditional avg
-        
-        RQ2: Performance Analysis  
-        - Protocol overhead: X.X% latency increase
-        - Statistical significance: p < 0.05 (or not significant)
-        
-        RQ3: Accuracy Analysis
-        - Task completion rates: MCP X.X% vs Traditional X.X%
-        - Tool selection accuracy comparison
-        
-        Conclusions and Recommendations:
-        - [Research findings based on statistical analysis]
-        """
-        
+    def generate_summary_report(self, session_files: List[str] = None) -> str:
+        """Generate comprehensive analysis report from saved CSV files in results_dir."""
+
+        # ── Discover CSV files ────────────────────────────────────────────────
+        search_dir = self.results_dir
+        perf_files = sorted(search_dir.glob("*_performance.csv"))
+        acc_files  = sorted(search_dir.glob("*_accuracy.csv"))
+        interop_files = sorted(search_dir.glob("*_interoperability.csv"))
+
+        if not perf_files:
+            return "No result CSVs found in " + str(search_dir) + ". Run the benchmark first."
+
+        # ── Load and combine performance data ─────────────────────────────────
+        perf_rows = []
+        for f in perf_files:
+            with open(f, newline='') as fh:
+                perf_rows.extend(list(csv.DictReader(fh)))
+
+        mcp_lat  = [float(r['total_latency_ms']) for r in perf_rows if r['protocol_type'] == 'mcp']
+        trad_lat = [float(r['total_latency_ms']) for r in perf_rows if r['protocol_type'] == 'traditional']
+
+        # ── Load accuracy data ────────────────────────────────────────────────
+        acc_rows = []
+        for f in acc_files:
+            with open(f, newline='') as fh:
+                acc_rows.extend(list(csv.DictReader(fh)))
+
+        mcp_acc_rate  = (sum(1 for r in acc_rows if r['protocol_type'] == 'mcp' and r['task_completed'] == 'True')
+                         / max(1, sum(1 for r in acc_rows if r['protocol_type'] == 'mcp')) * 100)
+        trad_acc_rate = (sum(1 for r in acc_rows if r['protocol_type'] == 'traditional' and r['task_completed'] == 'True')
+                         / max(1, sum(1 for r in acc_rows if r['protocol_type'] == 'traditional')) * 100)
+
+        # ── Load interoperability data ────────────────────────────────────────
+        interop_rows = []
+        for f in interop_files:
+            with open(f, newline='') as fh:
+                interop_rows.extend(list(csv.DictReader(fh)))
+
+        mcp_loc  = [int(r['code_changes_required']) for r in interop_rows if r['protocol_type'] == 'mcp']
+        trad_loc = [int(r['code_changes_required']) for r in interop_rows if r['protocol_type'] == 'traditional']
+
+        # ── Statistical significance (latency) ────────────────────────────────
+        stat_section = "  Not enough data for statistical tests."
+        if len(mcp_lat) >= 2 and len(trad_lat) >= 2:
+            lat_analysis = self.analyze_rq2_latency(
+                [type('P', (), {'total_latency_ms': v})() for v in mcp_lat],
+                [type('P', (), {'total_latency_ms': v})() for v in trad_lat],
+            )
+            stat_section = (
+                f"  Welch's t-test: t={lat_analysis['t_statistic']}, p={lat_analysis['p_value']}"
+                f" ({'SIGNIFICANT' if lat_analysis['statistically_significant'] else 'not significant'} at α=0.05)\n"
+                f"  Cohen's d: {lat_analysis['cohens_d']} ({lat_analysis['effect_magnitude']} effect)\n"
+                f"  95% CI for MCP mean latency:  {lat_analysis['mcp_ci_95']} ms\n"
+                f"  95% CI for Trad mean latency: {lat_analysis['trad_ci_95']} ms\n"
+                f"  95% CI for difference:        {lat_analysis['diff_ci_95']} ms"
+            )
+
+        report = f"""\n"""\
+            f"MCP vs Traditional Function Calling — Benchmarking Results\n"\
+            f"==========================================================\n"\
+            f"Analysis Date : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"\
+            f"Sessions      : {len(perf_files)} performance files, {len(acc_files)} accuracy files\n"\
+            f"Total trials  : {len(perf_rows)} performance records, {len(acc_rows)} accuracy records\n\n"\
+            f"RQ1 — Interoperability\n"\
+            f"  MCP  lines to swap provider: {statistics.mean(mcp_loc)  if mcp_loc  else 'n/a'}\n"\
+            f"  Trad lines to swap provider: {statistics.mean(trad_loc) if trad_loc else 'n/a'}\n\n"\
+            f"RQ2 — Latency\n"\
+            f"  MCP  mean latency : {statistics.mean(mcp_lat):.1f} ms (n={len(mcp_lat)})\n"\
+            f"  Trad mean latency : {statistics.mean(trad_lat):.1f} ms (n={len(trad_lat)})\n"\
+            f"  Protocol overhead : {((statistics.mean(mcp_lat)-statistics.mean(trad_lat))/statistics.mean(trad_lat)*100):.1f}%\n"\
+            f"{stat_section}\n\n"\
+            f"RQ3 — Accuracy\n"\
+            f"  MCP  task-completion rate: {mcp_acc_rate:.1f}%\n"\
+            f"  Trad task-completion rate: {trad_acc_rate:.1f}%\n"
         return report
 
 
