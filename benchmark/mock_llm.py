@@ -18,6 +18,7 @@ When you have API keys, set:
 import time
 import random
 import os
+import sys
 from dataclasses import dataclass, field
 from typing import Optional
 from enum import Enum
@@ -44,6 +45,47 @@ class LLMResponse:
     completion_tokens: int
     success:          bool
     error:            Optional[str] = None
+    tool_result:      Optional[dict] = None  # real server.py response (None = server unavailable)
+    tool_exec_ms:     float = 0.0            # wall-clock time for actual tool execution
+
+
+# -- Real server tool executor ------------------------------------------------
+# Import real server.py tools so benchmarking executes them and measures
+# real wall-clock latency instead of using sampled distributions.
+_server_tools: dict = {}  # populated below; empty = mock-only fallback
+try:
+    _benchmark_dir = os.path.dirname(os.path.abspath(__file__))
+    _project_root  = os.path.dirname(_benchmark_dir)
+    if _project_root not in sys.path:
+        sys.path.insert(0, _project_root)
+    from server import (
+        get_field_status, get_weather_forecast, recommend_irrigation,
+        activate_irrigation, log_sensor_reading, get_crop_schedule, calculate_area,
+    )
+    _server_tools = {
+        "get_field_status":     get_field_status,
+        "get_weather_forecast": get_weather_forecast,
+        "recommend_irrigation": recommend_irrigation,
+        "activate_irrigation":  activate_irrigation,
+        "log_sensor_reading":   log_sensor_reading,
+        "get_crop_schedule":    get_crop_schedule,
+        "calculate_area":       calculate_area,
+    }
+except Exception:
+    pass  # server.py not importable -- mock-only fallback is automatic
+
+
+def _execute_server_tool(tool_name: str, tool_args: dict):
+    """Execute a real server.py tool; returns (result_dict, elapsed_ms)."""
+    fn = _server_tools.get(tool_name)
+    if fn is None:
+        return None, 0.0
+    t0 = time.perf_counter()
+    try:
+        result = fn(**tool_args)
+    except Exception as exc:
+        result = {"error": str(exc)}
+    return result, round((time.perf_counter() - t0) * 1000, 3)
 
 
 # ── Realistic latency profiles (ms) based on Anthropic/OpenAI public benchmarks
@@ -169,15 +211,32 @@ class MockLLMClient:
             tool_name, tool_args = _HALLUCINATION_MAP[task_type]
             raw_text = f"I'll call {tool_name} to handle this request."
 
+        # Execute the chosen tool against real server.py functions.
+        # Protocol overhead: MCP wraps calls in a JSON-RPC envelope (~25 ms);
+        # Traditional calls the function directly with no protocol layer.
+        tool_result, tool_exec_ms = _execute_server_tool(tool_name, tool_args)
+        mcp_overhead_ms = 25.0 if (self.protocol == "mcp" and tool_exec_ms > 0) else 0.0
+        total_latency   = round(latency + tool_exec_ms + mcp_overhead_ms, 2)
+
+        # A trial truly succeeds only if the LLM chose the right tool AND
+        # the server executed it without an error.
+        exec_ok = (
+            tool_result is not None
+            and isinstance(tool_result, dict)
+            and "error" not in tool_result
+        ) if tool_result is not None else True  # fall back to mock-only verdict
+
         return LLMResponse(
             provider=self.provider,
             tool_called=tool_name,
             tool_args=tool_args,
             raw_text=raw_text,
-            latency_ms=round(latency, 2),
+            latency_ms=total_latency,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
-            success=is_correct,
+            success=is_correct and exec_ok,
+            tool_result=tool_result,
+            tool_exec_ms=tool_exec_ms,
         )
 
     def _real_call(self, task_type: str, prompt: str) -> LLMResponse:

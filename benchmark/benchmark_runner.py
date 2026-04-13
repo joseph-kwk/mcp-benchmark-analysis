@@ -191,17 +191,27 @@ class ExperimentalController:
                         scenario.scenario_id, "field_status"
                     )
                     llm_response = tester.run_scenario(task_type)
+                    # tool_result is the REAL server.py response (or None if server unavailable)
+                    real_response = llm_response.tool_result
+                    tool_succeeded = (
+                        llm_response.success
+                        and real_response is not None
+                        and "error" not in real_response
+                    ) if real_response is not None else llm_response.success
+
                     execution_result = {
-                        'task_completed':   llm_response.success,
+                        'task_completed':   tool_succeeded,
                         'correct_tools':    llm_response.success,
                         'param_accuracy':   1.0 if llm_response.success else 0.4,
-                        'result_correctness': 1.0 if llm_response.success else 0.3,
+                        'result_correctness': 1.0 if tool_succeeded else 0.3,
                         'hallucination':    not llm_response.success,
                         'error_recovery':   False,
                         'token_count':      llm_response.prompt_tokens + llm_response.completion_tokens,
-                        'validation_scores': {k: llm_response.success
+                        'validation_scores': {k: tool_succeeded
                                               for k in scenario.validation_criteria.keys()},
                         'latency_ms':       llm_response.latency_ms,
+                        'tool_exec_ms':     llm_response.tool_exec_ms,
+                        'real_response':    real_response,
                     }
                     
                     end_time = time.perf_counter()

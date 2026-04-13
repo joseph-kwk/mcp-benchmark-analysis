@@ -33,6 +33,20 @@ from mock_llm import (
     count_loc_to_swap_provider,
 )
 
+# Import real server tools directly — server.py functions are plain Python;
+# mcp.run() is guarded by if __name__ == '__main__' so this import is safe.
+try:
+    sys.path.insert(0, os.path.dirname(__file__))
+    from server import (
+        get_field_status, get_weather_forecast, recommend_irrigation,
+        activate_irrigation, log_sensor_reading, get_crop_schedule,
+        calculate_area,
+    )
+    _SERVER_AVAILABLE = True
+except Exception as _e:
+    _SERVER_AVAILABLE = False
+    _SERVER_ERROR = str(_e)
+
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="MCP Benchmark Dashboard",
@@ -83,6 +97,9 @@ if "mcp_model" not in st.session_state:
 if "trad_model" not in st.session_state:
     st.session_state.trad_model = "claude_3.5"
 
+if "last_server_response" not in st.session_state:
+    st.session_state.last_server_response = None
+
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.title("⚙️ Configuration")
@@ -131,9 +148,9 @@ with st.sidebar:
 st.title("🌾 MCP Benchmark Dashboard")
 st.caption("**Benchmarking the Model Context Protocol** — Interoperability, Latency, and Accuracy · Spring 2026 Senior Project · Southwestern College")
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────────────
 # SECTION 1 — DIGITAL TWIN  (the "why this matters" context)
-# ═══════════════════════════════════════════════════════════════════════════════
+# ─────────────────────────────────────────────────────────────────────────────
 with st.expander("🌱 Step 1 — The Digital Twin: Smart Farm Simulation", expanded=True):
     st.caption(
         "A virtual farm where soil moisture drains over time. "
@@ -141,8 +158,11 @@ with st.expander("🌱 Step 1 — The Digital Twin: Smart Farm Simulation", expa
         "This is what we're benchmarking. Click **Simulate Tick** to watch moisture drain."
     )
 
+    if not _SERVER_AVAILABLE:
+        st.error(f"⚠️ server.py not importable: {_SERVER_ERROR}")
+
     # Simulate one moisture-decay tick
-    tick_col, reset_col, _ = st.columns([1, 1, 4])
+    tick_col, reset_col, refresh_col, _ = st.columns([1, 1, 1.5, 3])
     with tick_col:
         if st.button("▶ Simulate Tick", use_container_width=True):
             for f in st.session_state.fields.values():
@@ -153,16 +173,42 @@ with st.expander("🌱 Step 1 — The Digital Twin: Smart Farm Simulation", expa
             for name, f in st.session_state.fields.items():
                 f["moisture"] = f["base"]
             st.session_state.sim_ticks = 0
+            st.session_state.last_server_response = None
+    with refresh_col:
+        if st.button("🔄 Fetch from Server", use_container_width=True, help="Call get_field_status() on the real server.py for each field"):
+            if _SERVER_AVAILABLE:
+                s = time.perf_counter()
+                responses = {}
+                for fid in ["Field_A", "Field_B", "Field_C", "Field_D"]:
+                    responses[fid] = get_field_status(fid)
+                elapsed = (time.perf_counter() - s) * 1000
+                # Sync Streamlit moisture state with real server values
+                _key_map = {"Field_A": "Field A", "Field_B": "Field B",
+                             "Field_C": "Field C", "Field_D": "Field D"}
+                for fid, resp in responses.items():
+                    if "moisture_pct" in resp:
+                        st.session_state.fields[_key_map[fid]]["moisture"] = float(resp["moisture_pct"])
+                st.session_state.last_server_response = {
+                    "source": "server.get_field_status()",
+                    "elapsed_ms": round(elapsed, 3),
+                    "responses": responses,
+                }
+            else:
+                st.error("server.py not available")
 
     st.caption(f"Simulation ticks: **{st.session_state.sim_ticks}** (each tick ≈ 1 hour of evaporation)")
 
-    # Field cards
+    # Field cards  +  per-field irrigation button
     fcols = st.columns(4)
     field_items = list(st.session_state.fields.items())
     for i, (fname, fdata) in enumerate(field_items):
         m = fdata["moisture"]
-        css = "field-critical" if m < 10 else ("field-warning" if m < 20 else "field-healthy")
-        status = "🔴 CRITICAL" if m < 10 else ("🟡 Needs Water" if m < 20 else "🟢 Healthy")
+        css    = "field-critical" if m < 10 else ("field-warning" if m < 20 else "field-healthy")
+        status = "🔴 CRITICAL"  if m < 10 else ("🟡 Needs Water" if m < 20 else "🟢 Healthy")
+        # Map display name → server field ID
+        fid_map = {"Field A": "Field_A", "Field B": "Field_B",
+                    "Field C": "Field_C", "Field D": "Field_D"}
+        fid = fid_map[fname]
         with fcols[i]:
             st.markdown(f"""
             <div class="field-card {css}">
@@ -172,6 +218,36 @@ with st.expander("🌱 Step 1 — The Digital Twin: Smart Farm Simulation", expa
                 <div style="font-size:0.78em; margin-top:4px; opacity:0.9">{status}</div>
             </div>
             """, unsafe_allow_html=True)
+            # Show irrigation button only for fields that need water
+            if m < 20 and _SERVER_AVAILABLE:
+                if st.button(f"💧 Irrigate {fname}", key=f"irr_{fname}", use_container_width=True):
+                    s = time.perf_counter()
+                    result = activate_irrigation(fid, "start", 30)
+                    elapsed = (time.perf_counter() - s) * 1000
+                    st.session_state.last_server_response = {
+                        "source": f"server.activate_irrigation('{fid}', 'start', 30)",
+                        "elapsed_ms": round(elapsed, 3),
+                        "responses": {fid: result},
+                    }
+                    # Boost moisture after irrigation
+                    if result.get("success"):
+                        fdata["moisture"] = min(fdata["moisture"] + 20, 60.0)
+
+    # Real server response viewer
+    if st.session_state.last_server_response:
+        resp_data = st.session_state.last_server_response
+        st.divider()
+        st.markdown(f"""
+        <div style="background:#f0fdf4; border-left:4px solid #10b981; border-radius:6px;
+                    padding:10px 14px; font-family:monospace; font-size:0.82em;">
+            ✅ <b>Real server.py response</b> —
+            <code>{resp_data['source']}</code>
+            &nbsp;&nbsp;|  ⏱ <b>{resp_data['elapsed_ms']} ms</b>
+        </div>
+        """, unsafe_allow_html=True)
+        import json as _json
+        with st.expander("📦 Full server response (raw JSON)"):
+            st.code(_json.dumps(resp_data["responses"], indent=2), language="json")
 
     st.divider()
 
@@ -237,12 +313,17 @@ if run_clicked:
             "trad_tokens":      trad_resp.prompt_tokens + trad_resp.completion_tokens,
             "trad_success":     trad_resp.success,
             "trad_tool":        trad_resp.tool_called,
+            "trad_exec_ms":     trad_resp.tool_exec_ms,
             # MCP
             "mcp_model":        mcp_model,
             "mcp_latency_ms":   mcp_resp.latency_ms,
             "mcp_tokens":       mcp_resp.prompt_tokens + mcp_resp.completion_tokens,
             "mcp_success":      mcp_resp.success,
             "mcp_tool":         mcp_resp.tool_called,
+            "mcp_exec_ms":      mcp_resp.tool_exec_ms,
+            # Last real server response (for display only, not charted)
+            "_trad_result":     str(trad_resp.tool_result) if trad_resp.tool_result else None,
+            "_mcp_result":      str(mcp_resp.tool_result)  if mcp_resp.tool_result  else None,
         })
         progress.progress((i + 1) / trials_per_run, text=f"Trial {i+1}/{trials_per_run}...")
 
@@ -276,11 +357,15 @@ with left_pane:
     st.markdown(f"""
     <div class="{css_class}">
         {status_icon} Tool called: <b>{latest['trad_tool']}</b><br>
-        ⏱ Latency: <b>{latest['trad_latency_ms']:.0f} ms</b><br>
+        ⏱ Total latency: <b>{latest['trad_latency_ms']:.0f} ms</b><br>
+        🔧 Tool exec: <b>{latest['trad_exec_ms']:.2f} ms</b><br>
         🪙 Tokens: <b>{latest['trad_tokens']}</b><br>
         🤖 Model: <b>{latest['trad_model']}</b>
     </div>
     """, unsafe_allow_html=True)
+    if latest.get("_trad_result"):
+        with st.expander("📦 Server response (Traditional path)"):
+            st.code(latest["_trad_result"], language="json")
 
 with right_pane:
     st.subheader("MCP — Last Result")
@@ -289,11 +374,15 @@ with right_pane:
     st.markdown(f"""
     <div class="{css_class}">
         {status_icon} Tool called: <b>{latest['mcp_tool']}</b><br>
-        ⏱ Latency: <b>{latest['mcp_latency_ms']:.0f} ms</b><br>
+        ⏱ Total latency: <b>{latest['mcp_latency_ms']:.0f} ms</b><br>
+        🔧 Tool exec: <b>{latest['mcp_exec_ms']:.2f} ms</b><br>
         🪙 Tokens: <b>{latest['mcp_tokens']}</b><br>
         🤖 Model: <b>{latest['mcp_model']}</b>
     </div>
     """, unsafe_allow_html=True)
+    if latest.get("_mcp_result"):
+        with st.expander("📦 Server response (MCP path)"):
+            st.code(latest["_mcp_result"], language="json")
 
 st.divider()
 
