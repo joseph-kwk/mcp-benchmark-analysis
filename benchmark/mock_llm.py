@@ -19,6 +19,7 @@ import time
 import random
 import os
 import sys
+import json
 from dataclasses import dataclass, field
 from typing import Optional
 from enum import Enum
@@ -108,20 +109,120 @@ _ACCURACY_PROFILES = {
     },
 }
 
-# -- Token estimates (prompt + completion) per provider AND protocol
-# MCP sends the full JSON-RPC 2.0 tool manifest on every request:
-#   - All tool definitions, schemas, descriptions → extra prompt tokens
-#   - JSON-RPC response wrapper → extra completion tokens
-# Traditional sends only the relevant function schema → more compact.
-# Source: Anthropic/OpenAI token-counting docs + MCP spec section 3.2
-_TOKEN_PROFILES = {
-    # MCP: ~130 extra prompt tokens (tool manifest) + ~30 extra completion tokens (JSON-RPC wrapper)
-    ("mcp", LLMProvider.CLAUDE_35): {"prompt_mean": 550, "completion_mean": 115},
-    ("mcp", LLMProvider.GPT4O):     {"prompt_mean": 510, "completion_mean": 105},
-    # Traditional: provider-specific function schema only — more compact
-    ("traditional", LLMProvider.CLAUDE_35): {"prompt_mean": 420, "completion_mean": 85},
-    ("traditional", LLMProvider.GPT4O):     {"prompt_mean": 380, "completion_mean": 75},
+# ── Token counting: dynamic from actual payload content ───────────────────────
+#
+# Token counts are NOT hardcoded. They are computed from the real text that
+# would be sent to the API:
+#   - MCP prompt   = system header + FULL JSON-RPC tool manifest (all 12 tools)
+#                    + user message
+#   - Trad prompt  = system header + SINGLE function schema for called tool
+#                    + user message
+#   - Completion   = model decision text + tool call JSON + actual response JSON
+#
+# This means a long prompt gets more tokens than a short one; a verbose
+# tool response (activate_irrigation) gets more tokens than a simple one.
+# Context-dependent — exactly what your advisor meant.
+#
+# Tokenizer: tiktoken cl100k_base (GPT-4o encoder).
+# For Claude, Anthropic hasn't published their tokenizer; cl100k_base is the
+# standard approximation used in cross-model research (~3-5% error).
+
+try:
+    import tiktoken as _tiktoken
+    _enc = _tiktoken.get_encoding("cl100k_base")
+    def _count_tokens(text: str) -> int:
+        return len(_enc.encode(text))
+except Exception:
+    # tiktoken not available: fall back to 4-chars-per-token approximation
+    def _count_tokens(text: str) -> int:  # type: ignore[misc]
+        return max(1, len(text) // 4)
+
+
+# Full MCP tool manifest — JSON-RPC 2.0, all 12 tools.
+# This is what the MCP client sends on every request regardless of which tool is used.
+_MCP_TOOL_MANIFEST: str = json.dumps([
+    {"name": "get_field_status",
+     "description": "Provides the current moisture and health status of a specific field.",
+     "inputSchema": {"type": "object", "properties": {"field_id": {"type": "string", "description": "Field identifier (Field_A, Field_B, Field_C, Field_D)"}}, "required": ["field_id"]}},
+    {"name": "get_weather_forecast",
+     "description": "Get a simulated weather forecast for a farm location (1-5 days).",
+     "inputSchema": {"type": "object", "properties": {"location": {"type": "string"}, "days": {"type": "integer", "default": 3}}, "required": ["location"]}},
+    {"name": "recommend_irrigation",
+     "description": "Recommend an irrigation action based on current soil moisture level.",
+     "inputSchema": {"type": "object", "properties": {"field_id": {"type": "string"}, "moisture_pct": {"type": "number"}}, "required": ["field_id", "moisture_pct"]}},
+    {"name": "activate_irrigation",
+     "description": "Activate or deactivate the irrigation pump for a field. API key resolved server-side.",
+     "inputSchema": {"type": "object", "properties": {"field_id": {"type": "string"}, "action": {"type": "string", "enum": ["start", "stop"]}, "duration_minutes": {"type": "integer", "default": 30}}, "required": ["field_id", "action"]}},
+    {"name": "log_sensor_reading",
+     "description": "Log a sensor reading (moisture, temperature, pH, etc.) for a field.",
+     "inputSchema": {"type": "object", "properties": {"field_id": {"type": "string"}, "sensor_type": {"type": "string", "enum": ["moisture", "temperature", "ph", "nitrogen", "humidity"]}, "value": {"type": "number"}}, "required": ["field_id", "sensor_type", "value"]}},
+    {"name": "get_crop_schedule",
+     "description": "Return the planting and harvest schedule for a given crop.",
+     "inputSchema": {"type": "object", "properties": {"crop": {"type": "string"}}, "required": ["crop"]}},
+    {"name": "calculate_area",
+     "description": "Calculate the area of a rectangular field in acres and square feet.",
+     "inputSchema": {"type": "object", "properties": {"length": {"type": "number"}, "width": {"type": "number"}}, "required": ["length", "width"]}},
+    {"name": "add",      "description": "Add two numbers.",      "inputSchema": {"type": "object", "properties": {"a": {"type": "number"}, "b": {"type": "number"}}, "required": ["a", "b"]}},
+    {"name": "subtract", "description": "Subtract b from a.",    "inputSchema": {"type": "object", "properties": {"a": {"type": "number"}, "b": {"type": "number"}}, "required": ["a", "b"]}},
+    {"name": "multiply", "description": "Multiply two numbers.", "inputSchema": {"type": "object", "properties": {"a": {"type": "number"}, "b": {"type": "number"}}, "required": ["a", "b"]}},
+    {"name": "divide",   "description": "Divide a by b.",        "inputSchema": {"type": "object", "properties": {"a": {"type": "number"}, "b": {"type": "number"}}, "required": ["a", "b"]}},
+], separators=(",", ":"))
+
+# Traditional schemas — OpenAI function-call format, one per tool.
+# Only the single called tool is sent per request.
+_TRADITIONAL_SCHEMAS: dict = {
+    "get_field_status": json.dumps({"name": "get_field_status", "description": "Get moisture and health status of a field.", "parameters": {"type": "object", "properties": {"field_id": {"type": "string"}}, "required": ["field_id"]}}, separators=(",", ":")),
+    "get_weather_forecast": json.dumps({"name": "get_weather_forecast", "description": "Get weather forecast for a farm location.", "parameters": {"type": "object", "properties": {"location": {"type": "string"}, "days": {"type": "integer"}}, "required": ["location"]}}, separators=(",", ":")),
+    "recommend_irrigation": json.dumps({"name": "recommend_irrigation", "description": "Recommend irrigation action from soil moisture.", "parameters": {"type": "object", "properties": {"field_id": {"type": "string"}, "moisture_pct": {"type": "number"}}, "required": ["field_id", "moisture_pct"]}}, separators=(",", ":")),
+    "activate_irrigation": json.dumps({"name": "activate_irrigation", "description": "Activate or deactivate irrigation pump.", "parameters": {"type": "object", "properties": {"field_id": {"type": "string"}, "action": {"type": "string"}, "duration_minutes": {"type": "integer"}}, "required": ["field_id", "action"]}}, separators=(",", ":")),
+    "log_sensor_reading": json.dumps({"name": "log_sensor_reading", "description": "Log a field sensor reading.", "parameters": {"type": "object", "properties": {"field_id": {"type": "string"}, "sensor_type": {"type": "string"}, "value": {"type": "number"}}, "required": ["field_id", "sensor_type", "value"]}}, separators=(",", ":")),
+    "get_crop_schedule": json.dumps({"name": "get_crop_schedule", "description": "Get planting and harvest schedule for a crop.", "parameters": {"type": "object", "properties": {"crop": {"type": "string"}}, "required": ["crop"]}}, separators=(",", ":")),
+    "calculate_area": json.dumps({"name": "calculate_area", "description": "Calculate area of a rectangular field.", "parameters": {"type": "object", "properties": {"length": {"type": "number"}, "width": {"type": "number"}}, "required": ["length", "width"]}}, separators=(",", ":")),
 }
+
+_SYSTEM_HEADER = (
+    "You are an agricultural AI assistant. Use the provided tools to help farmers "
+    "monitor fields, manage irrigation, and optimize crop yields. "
+    "Always choose the most specific tool for the task."
+)
+
+
+def _count_dynamic_tokens(
+    protocol: str,
+    prompt: str,
+    tool_name: str,
+    tool_args: dict,
+    tool_result: Optional[dict],
+) -> tuple[int, int]:
+    """
+    Count tokens from the ACTUAL content sent/received by the API.
+
+    Prompt tokens  = system header + tool context + user prompt
+    Completion tokens = decision text + call args JSON + response JSON
+
+    Token counts vary with prompt length and response payload size.
+    """
+    if protocol == "mcp":
+        tool_context = f"Available tools (MCP JSON-RPC 2.0):\n{_MCP_TOOL_MANIFEST}"
+        # MCP response is wrapped in a JSON-RPC 2.0 envelope
+        result_json = json.dumps(
+            {"jsonrpc": "2.0", "id": 1, "result": {"content": [{"type": "tool_result", "content": tool_result or {}}]}},
+            separators=(",", ":")
+        )
+    else:
+        schema = _TRADITIONAL_SCHEMAS.get(tool_name, json.dumps({"name": tool_name, "parameters": {}}, separators=(",", ":")))
+        tool_context = f"Available functions:\n{schema}"
+        # Traditional response is the function_call object — no envelope
+        result_json = json.dumps(
+            {"function_call": {"name": tool_name, "arguments": json.dumps(tool_result or {}, separators=(",", ":"))}},
+            separators=(",", ":")
+        )
+
+    prompt_text     = f"{_SYSTEM_HEADER}\n\n{tool_context}\n\nUser: {prompt}"
+    call_json       = json.dumps({"tool": tool_name, "args": tool_args}, separators=(",", ":"))
+    completion_text = f"I'll call {tool_name} to handle this.\n{call_json}\n{result_json}"
+
+    return _count_tokens(prompt_text), _count_tokens(completion_text)
 
 
 def _sample_latency(provider: LLMProvider, rng: random.Random) -> float:
@@ -129,13 +230,6 @@ def _sample_latency(provider: LLMProvider, rng: random.Random) -> float:
     p = _LATENCY_PROFILES[provider]
     raw = rng.gauss(p["mean"], p["std"])
     return max(p["min"], min(p["max"], raw))
-
-
-def _sample_tokens(protocol: str, provider: LLMProvider, rng: random.Random) -> tuple[int, int]:
-    p = _TOKEN_PROFILES[(protocol, provider)]
-    prompt     = max(50, int(rng.gauss(p["prompt_mean"],     p["prompt_mean"] * 0.15)))
-    completion = max(10, int(rng.gauss(p["completion_mean"], p["completion_mean"] * 0.20)))
-    return prompt, completion
 
 
 # ── Mock scenario knowledge ────────────────────────────────────────────────────
@@ -182,7 +276,7 @@ class MockLLMClient:
 
         Args:
             task_type: Key from _CORRECT_TOOL_MAP (e.g. "irrigation_check")
-            prompt: The prompt text (used for token estimation, not actual call)
+            prompt: The user prompt text — token count is computed from its real length
 
         Returns:
             LLMResponse with latency, tokens, tool call decision
@@ -197,13 +291,14 @@ class MockLLMClient:
         if USE_REAL_APIS:
             time.sleep(latency / 1000.0)
 
-        prompt_tokens, completion_tokens = _sample_tokens(self.protocol, self.provider, self.rng)
-
         # Determine accuracy: does the model pick the right tool?
         accuracy_threshold = _ACCURACY_PROFILES[self.protocol][self.provider]
         is_correct = self.rng.random() < accuracy_threshold
 
         if task_type not in _CORRECT_TOOL_MAP:
+            prompt_tokens, completion_tokens = _count_dynamic_tokens(
+                self.protocol, prompt or task_type, "unknown", {}, None
+            )
             return LLMResponse(
                 provider=self.provider, tool_called=None, tool_args={},
                 raw_text=f"Unknown task type: {task_type}",
@@ -226,6 +321,17 @@ class MockLLMClient:
         tool_result, tool_exec_ms = _execute_server_tool(tool_name, tool_args)
         mcp_overhead_ms = 25.0 if (self.protocol == "mcp" and tool_exec_ms > 0) else 0.0
         total_latency   = round(latency + tool_exec_ms + mcp_overhead_ms, 2)
+
+        # Token counts: computed from the ACTUAL payload text, not sampled from
+        # a fixed distribution.  A longer prompt → more prompt tokens; a verbose
+        # tool response → more completion tokens.  Context-dependent.
+        prompt_tokens, completion_tokens = _count_dynamic_tokens(
+            self.protocol,
+            prompt or f"Handle task: {task_type}",
+            tool_name,
+            tool_args,
+            tool_result,
+        )
 
         # A trial truly succeeds only if the LLM chose the right tool AND
         # the server executed it without an error.
