@@ -471,7 +471,13 @@ m4.metric("MCP Latency",           f"{mcp_lat:.0f}ms",  delta=f"{mcp_lat - trad_
 m5.metric("LoC to swap (Legacy)",  f"{loc_trad} lines")
 m6.metric("LoC to swap (MCP)",     f"{loc_mcp} lines",  delta=f"-{loc_trad - loc_mcp} lines")
 st.caption("🎯 Accuracy (m1 vs m2) → **RQ3**  \u00a0|   ⏱ Latency (m3 vs m4) → **RQ2**  \u00a0|   🔌 LoC to swap (m5 vs m6) → **RQ1**")
-
+st.info(
+    "\U0001f9ea **Data source: mock simulation** (no API keys configured). "
+    "Accuracy rates, latency distributions, and token counts are based on published benchmarks ("
+    "Anthropic/OpenAI docs + MCP spec). "
+    "Set `USE_REAL_APIS=true` + API keys to replace with live measurements. "
+    "Interoperability (LoC) is **verified from actual source code** and is not simulated."
+)
 st.divider()
 
 # ── Live charts ────────────────────────────────────────────────────────────────
@@ -525,6 +531,11 @@ with chart_col2:
 
 # Token comparison bar chart
 st.subheader("🪙 Token Usage Comparison")
+st.caption(
+    "MCP uses **more tokens** than Traditional because it sends the full JSON-RPC 2.0 tool manifest "
+    "(all tool definitions + schemas) on every request (~130 extra prompt tokens + ~30 extra completion tokens). "
+    "Traditional function calling sends only the relevant schema for the target provider — more compact."
+)
 tok_data = pd.DataFrame({
     "Protocol": ["Traditional", "MCP"],
     "Avg Tokens": [trad_tok, mcp_tok],

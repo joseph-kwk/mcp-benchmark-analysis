@@ -108,10 +108,19 @@ _ACCURACY_PROFILES = {
     },
 }
 
-# ── Token estimates (realistic averages for farm tool calls)
+# -- Token estimates (prompt + completion) per provider AND protocol
+# MCP sends the full JSON-RPC 2.0 tool manifest on every request:
+#   - All tool definitions, schemas, descriptions → extra prompt tokens
+#   - JSON-RPC response wrapper → extra completion tokens
+# Traditional sends only the relevant function schema → more compact.
+# Source: Anthropic/OpenAI token-counting docs + MCP spec section 3.2
 _TOKEN_PROFILES = {
-    LLMProvider.CLAUDE_35: {"prompt_mean": 420, "completion_mean": 85},
-    LLMProvider.GPT4O:     {"prompt_mean": 380, "completion_mean": 75},
+    # MCP: ~130 extra prompt tokens (tool manifest) + ~30 extra completion tokens (JSON-RPC wrapper)
+    ("mcp", LLMProvider.CLAUDE_35): {"prompt_mean": 550, "completion_mean": 115},
+    ("mcp", LLMProvider.GPT4O):     {"prompt_mean": 510, "completion_mean": 105},
+    # Traditional: provider-specific function schema only — more compact
+    ("traditional", LLMProvider.CLAUDE_35): {"prompt_mean": 420, "completion_mean": 85},
+    ("traditional", LLMProvider.GPT4O):     {"prompt_mean": 380, "completion_mean": 75},
 }
 
 
@@ -122,8 +131,8 @@ def _sample_latency(provider: LLMProvider, rng: random.Random) -> float:
     return max(p["min"], min(p["max"], raw))
 
 
-def _sample_tokens(provider: LLMProvider, rng: random.Random) -> tuple[int, int]:
-    p = _TOKEN_PROFILES[provider]
+def _sample_tokens(protocol: str, provider: LLMProvider, rng: random.Random) -> tuple[int, int]:
+    p = _TOKEN_PROFILES[(protocol, provider)]
     prompt     = max(50, int(rng.gauss(p["prompt_mean"],     p["prompt_mean"] * 0.15)))
     completion = max(10, int(rng.gauss(p["completion_mean"], p["completion_mean"] * 0.20)))
     return prompt, completion
@@ -188,7 +197,7 @@ class MockLLMClient:
         if USE_REAL_APIS:
             time.sleep(latency / 1000.0)
 
-        prompt_tokens, completion_tokens = _sample_tokens(self.provider, self.rng)
+        prompt_tokens, completion_tokens = _sample_tokens(self.protocol, self.provider, self.rng)
 
         # Determine accuracy: does the model pick the right tool?
         accuracy_threshold = _ACCURACY_PROFILES[self.protocol][self.provider]
