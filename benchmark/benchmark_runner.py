@@ -201,6 +201,7 @@ class ExperimentalController:
 
                     execution_result = {
                         'task_completed':   tool_succeeded,
+                        # correct_tools = did the LLM pick the right tool? (separate from exec success)
                         'correct_tools':    llm_response.success,
                         'param_accuracy':   1.0 if llm_response.success else 0.4,
                         'result_correctness': 1.0 if tool_succeeded else 0.3,
@@ -209,19 +210,19 @@ class ExperimentalController:
                         'token_count':      llm_response.prompt_tokens + llm_response.completion_tokens,
                         'validation_scores': {k: tool_succeeded
                                               for k in scenario.validation_criteria.keys()},
+                        # latency_ms from mock_llm already includes MCP envelope overhead (+25ms)
+                        # DO NOT add protocol_overhead again here — that would double-count it.
                         'latency_ms':       llm_response.latency_ms,
                         'tool_exec_ms':     llm_response.tool_exec_ms,
                         'real_response':    real_response,
                     }
                     
                     end_time = time.perf_counter()
-                    # Protocol overhead: MCP JSON-RPC handshake adds ~25ms
-                    protocol_overhead = 25.0 if protocol_type == "mcp" else 0.0
-                    total_latency_ms = (
-                        execution_result.get('latency_ms',
+                    # latency_ms already has MCP overhead baked in from mock_llm.call();
+                    # protocol_overhead here is 0 to avoid double-counting.
+                    protocol_overhead = 0.0
+                    total_latency_ms = execution_result.get('latency_ms',
                                              (end_time - start_time) * 1000)
-                        + protocol_overhead
-                    )
                     
                     self.metrics_collector.record_performance(
                         scenario_id=scenario.scenario_id,

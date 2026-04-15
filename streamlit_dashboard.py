@@ -62,8 +62,8 @@ st.markdown("""
     .metric-container { background: #f8f9fa; border-radius: 8px; padding: 12px; margin-bottom: 8px; }
     .mcp-badge   { background: #d1fae5; color: #065f46; padding: 3px 10px; border-radius: 12px; font-size: 0.82em; font-weight: 600; }
     .trad-badge  { background: #fee2e2; color: #991b1b; padding: 3px 10px; border-radius: 12px; font-size: 0.82em; font-weight: 600; }
-    .result-box  { background: #f1f5f9; border-left: 4px solid #6366f1; border-radius: 4px; padding: 10px 14px; font-family: monospace; font-size: 0.88em; }
-    .result-fail { border-left-color: #ef4444; background: #fff5f5; }
+    .result-box  { background: #f1f5f9; border-left: 4px solid #6366f1; border-radius: 4px; padding: 10px 14px; font-family: monospace; font-size: 0.88em; color: #1e293b; }
+    .result-fail { border-left-color: #ef4444; background: #fff5f5; color: #1e293b; }
     .header-row  { display: flex; align-items: center; gap: 10px; }
     .field-card  { border-radius: 10px; padding: 16px; text-align: center; color: white; font-weight: 600; }
     .field-healthy  { background: linear-gradient(135deg, #10b981, #34d399); }
