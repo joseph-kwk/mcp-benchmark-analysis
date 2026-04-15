@@ -1,0 +1,12 @@
+{
+    "servers": {
+        "agri-advisor": {
+            "type": "stdio",
+            "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+            "args": ["${workspaceFolder}\\server.py"],
+            "env": {
+                "PUMP_API_KEY": "mock-pump-secret-key-2026"
+            }
+        }
+    }
+}

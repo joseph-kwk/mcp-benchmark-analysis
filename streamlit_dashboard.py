@@ -144,9 +144,72 @@ with st.sidebar:
 
     st.caption("API keys not required. Switch `USE_REAL_APIS=true` + set env vars when ready.")
 
+    st.divider()
+    st.subheader("📖 How to Use")
+    st.markdown("""
+**Step 1 — Digital Twin** *(top of page)*  
+See the live farm. Click **Simulate Tick** to drain moisture.  
+Click **🔄 Fetch from Server** to pull real data from `server.py`.  
+Fields A & C below 20 % show a **💧 Irrigate** button — click it to see the pump API key vault in action.
+
+---
+**Step 2 — Run Benchmark** *(middle of page)*  
+Pick a **Task** and **Trials** in this sidebar, then hit **▶ Run Benchmark**.  
+Left pane = Traditional (provider-locked).  
+Right pane = MCP (provider-agnostic).  
+Each card shows the real server response + execution time.
+
+---
+**Step 3 — Read the Metrics** *(below benchmark)*  
+• 🎯 **Accuracy** → did the LLM pick the right tool?  
+• ⏱ **Latency** → total round-trip incl. tool execution  
+• 🔌 **Interoperability** → lines of code to swap provider  
+• 🔬 **Stats** → unlocks after 10 trials (p-value, Cohen's d)
+
+---
+**Step 4 — Swap the MCP Model** *(this sidebar)*  
+Change **MCP Model** dropdown and re-run — *zero code changes*.  
+Compare vs the Traditional side that would need {47} lines rewritten.
+
+---
+**Step 5 — Download Results**  
+Scroll to **Raw Trial Data** → **⬇ Download CSV**.
+    """)
+
 # ── Header ─────────────────────────────────────────────────────────────────────
 st.title("🌾 MCP Benchmark Dashboard")
 st.caption("**Benchmarking the Model Context Protocol** — Interoperability, Latency, and Accuracy · Spring 2026 Senior Project · Southwestern College")
+
+# ── Orientation banner ─────────────────────────────────────────────────────────
+with st.expander("🗺️ Dashboard Tour — click to see what each section does", expanded=False):
+    t1, t2, t3 = st.columns(3)
+    with t1:
+        st.markdown("""**🌱 Step 1 · Digital Twin**  
+A simulated farm with 4 fields. Moisture drains over time.  
+→ Shows **why** LLMs need tool-calling (a real pump must fire).  
+→ Click **Fetch from Server** to call `get_field_status()` live.  
+→ Click **💧 Irrigate** to fire `activate_irrigation()` and see the key vault response in JSON.
+""")
+    with t2:
+        st.markdown("""**📊 Step 2 · Benchmark**  
+Run N trials of the same task through both protocols.  
+→ **Accuracy**: did the LLM call the right tool with right args?  
+→ **Latency**: end-to-end ms including real tool execution  
+→ **Interoperability**: 0 LoC (MCP) vs 47 LoC (Traditional) to swap AI provider  
+→ After 10+ trials: p-value + Cohen's d unlock automatically.
+""")
+    with t3:
+        st.markdown("""**🔬 Step 3 · Research Questions**  
+This dashboard answers 3 RQs:  
+→ **RQ1** Interoperability — scroll to the 🔌 section  
+→ **RQ2** Latency overhead — see the ⏱ line chart + stats panel  
+→ **RQ3** Accuracy — see the 🎯 rolling accuracy chart  
+
+Download all trial data: **Raw Trial Data → ⬇ CSV**  
+Full 100-trial results live in `benchmark/results/`.
+""")
+    st.info("💡 Tip: use the sidebar to pick task type, model, and trials per run. MCP model can be swapped live — Traditional cannot.")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 1 — DIGITAL TWIN  (the "why this matters" context)
@@ -388,7 +451,7 @@ st.divider()
 
 # ── Aggregate metrics ──────────────────────────────────────────────────────────
 st.subheader(f"📊 Aggregate Results — {len(df)} trials")
-
+st.caption("These six numbers answer all three research questions at a glance.")
 m1, m2, m3, m4, m5, m6 = st.columns(6)
 
 trad_acc = df["trad_success"].mean() * 100
@@ -407,6 +470,7 @@ m3.metric("Traditional Latency",   f"{trad_lat:.0f}ms")
 m4.metric("MCP Latency",           f"{mcp_lat:.0f}ms",  delta=f"{mcp_lat - trad_lat:+.0f}ms", delta_color="inverse")
 m5.metric("LoC to swap (Legacy)",  f"{loc_trad} lines")
 m6.metric("LoC to swap (MCP)",     f"{loc_mcp} lines",  delta=f"-{loc_trad - loc_mcp} lines")
+st.caption("🎯 Accuracy (m1 vs m2) → **RQ3**  \u00a0|   ⏱ Latency (m3 vs m4) → **RQ2**  \u00a0|   🔌 LoC to swap (m5 vs m6) → **RQ1**")
 
 st.divider()
 
