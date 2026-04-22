@@ -32,22 +32,13 @@ try:
 except ImportError:
     pass  # python-dotenv not installed; rely on system env vars
 
-# Load .env file so OPENAI_API_KEY / USE_REAL_APIS are available without
-# the user having to set system environment variables manually.
-try:
-    from dotenv import load_dotenv as _load_dotenv
-    _load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
-except ImportError:
-    pass  # python-dotenv not installed; rely on system env vars
-
 
 # ── Single flag to switch between mock and real APIs ──────────────────────────
 USE_REAL_APIS = os.environ.get("USE_REAL_APIS", "false").lower() == "true"
 
 
 class LLMProvider(Enum):
-    CLAUDE_35   = "claude_3.5"
-    GPT4O       = "gpt4o"
+    GPT4O = "gpt4o"
 
 
 @dataclass
@@ -105,24 +96,17 @@ def _execute_server_tool(tool_name: str, tool_args: dict):
     return result, round((time.perf_counter() - t0) * 1000, 3)
 
 
-# ── Realistic latency profiles (ms) based on Anthropic/OpenAI public benchmarks
+# ── Realistic latency profiles (ms) based on OpenAI public benchmarks
 _LATENCY_PROFILES = {
-    LLMProvider.CLAUDE_35: {"mean": 1200, "std": 300, "min": 650,  "max": 3000},
-    LLMProvider.GPT4O:     {"mean":  950, "std": 250, "min": 500,  "max": 2500},
+    LLMProvider.GPT4O: {"mean": 950, "std": 250, "min": 500, "max": 2500},
 }
 
 # ── Accuracy profiles: probability the model picks the RIGHT tool + args
 # MCP uses strict JSON-RPC schema → fewer hallucinations
-# Traditional relies on model-specific schema → more drift
+# Traditional relies on per-call function schema → more schema-drift hallucinations
 _ACCURACY_PROFILES = {
-    "mcp": {
-        LLMProvider.CLAUDE_35: 0.96,
-        LLMProvider.GPT4O:     0.94,
-    },
-    "traditional": {
-        LLMProvider.CLAUDE_35: 0.87,
-        LLMProvider.GPT4O:     0.82,
-    },
+    "mcp":         {LLMProvider.GPT4O: 0.94},
+    "traditional": {LLMProvider.GPT4O: 0.82},
 }
 
 # ── Token counting: dynamic from actual payload content ───────────────────────
@@ -137,11 +121,9 @@ _ACCURACY_PROFILES = {
 #
 # This means a long prompt gets more tokens than a short one; a verbose
 # tool response (activate_irrigation) gets more tokens than a simple one.
-# Context-dependent — exactly what your advisor meant.
+# Context-dependent — exactly what your advisor specified.
 #
 # Tokenizer: tiktoken cl100k_base (GPT-4o encoder).
-# For Claude, Anthropic hasn't published their tokenizer; cl100k_base is the
-# standard approximation used in cross-model research (~3-5% error).
 
 try:
     import tiktoken as _tiktoken
@@ -274,10 +256,10 @@ _HALLUCINATION_MAP = {
 
 class MockLLMClient:
     """
-    Simulates LLM API calls for Claude 3.5 and GPT-4o.
+    Drives GPT-4o API calls (real or mock) for MCP vs Traditional benchmarking.
 
     Usage:
-        client = MockLLMClient(LLMProvider.CLAUDE_35, protocol="mcp", seed=42)
+        client = MockLLMClient(LLMProvider.GPT4O, protocol="mcp", seed=42)
         response = client.call(task_type="irrigation_check", prompt="Field C is at 8% moisture...")
     """
 
@@ -364,163 +346,13 @@ class MockLLMClient:
             raw_text=raw_text,
             latency_ms=total_latency,
             prompt_tokens=prompt_tokens,
-            completionvia OpenAI GPT-4o with native function/tool calling.
-
-        MCP path:         sends ALL tool definitions (full manifest) — simulates
-                          the MCP client broadcasting every available tool.
-        Traditional path: sends ONLY the single tool schema for this task —
-                          simulates per-call function registration.
-
-        Token counts come from the real usage object returned by the API.
-        Latency is real wall-clock time.
-        """
-        if self.provider != LLMProvider.GPT4O:
-            # Claude not yet wired; fall back to mock for non-GPT-4o providers
-            return self._mock_call_internal(task_type, prompt)
-
-        api_key = os.environ.get("OPENAI_API_KEY", "")
-        if not api_key:
-            raise RuntimeError(
-                "OPENAI_API_KEY not set. Add it to your .env file and set USE_REAL_APIS=true."
-            )
-
-        try:
-            from openai import OpenAI
-        except ImportError:
-            raise RuntimeError("openai package not installed. Run: pip install openai")
-
-        client = OpenAI(api_key=api_key)
-
-        # Build the tool definitions to send
-        if self.protocol == "mcp":
-            # MCP: broadcast ALL tools — the full manifest, just like a real MCP client
-            tools = [
-                {"type": "function", "function": {"name": t["name"], "description": t["description"], "parameters": t["inputSchema"]}}
-                for t in json.loads(_MCP_TOOL_MANIFEST)
-            ]
-        else:
-            # Traditional: only the schema for the expected tool for this task
-            expected_tool = _CORRECT_TOOL_MAP.get(task_type, (None,))[0]
-            schema_str = _TRADITIONAL_SCHEMAS.get(expected_tool, "{}")
-            schema_obj = json.loads(schema_str)
-            tools = [{
-                "type": "function",
-                "function": {
-                    "name": schema_obj.get("name", expected_tool),
-                    "description": schema_obj.get("description", ""),
-                    "parameters": schema_obj.get("parameters", {}),
-                }
-            }]
-
-        messages = [
-            {"role": "system", "content": _SYSTEM_HEADER},
-            {"role": "user",   "content": prompt or f"Handle task: {task_type}"},
-        ]
-
-        t0 = time.perf_counter()
-        try:
-            response = client.chat.completions.create(
-                model="gpt-4o",
-                messages=messages,
-                tools=tools,
-                tool_choice="auto",
-                temperature=0,
-            )
-        except Exception as exc:
-            return LLMResponse(
-                provider=self.provider, tool_called=None, tool_args={},
-                raw_text=str(exc), latency_ms=round((time.perf_counter() - t0) * 1000, 2),
-                prompt_tokens=0, completion_tokens=0, success=False,
-                error=str(exc),
-            )
-        latency_ms = round((time.perf_counter() - t0) * 1000, 2)
-
-        # Extract real token counts from the API response
-        usage = response.usage
-        prompt_tokens     = usage.prompt_tokens     if usage else 0
-        completion_tokens = usage.completion_tokens if usage else 0
-
-        # Parse the tool call the model chose
-        choice  = response.choices[0]
-        message = choice.message
-        tool_calls = message.tool_calls or []
-
-        if tool_calls:
-            tc        = tool_calls[0]
-            tool_name = tc.function.name
-            try:
-                tool_args = json.loads(tc.function.arguments)
-            except Exception:
-                tool_args = {}
-            raw_text = f"I'll call {tool_name} to handle this."
-        else:
-            # Model returned text instead of a tool call
-            tool_name = None
-            tool_args = {}
-            raw_text  = message.content or ""
-
-        # Check correctness: did the model pick the right tool?
-        expected_tool_name = _CORRECT_TOOL_MAP.get(task_type, (None,))[0]
-        is_correct = (tool_name == expected_tool_name)
-
-        # Execute the chosen tool against real server.py
-        tool_result, tool_exec_ms = _execute_server_tool(tool_name, tool_args) if tool_name else (None, 0.0)
-
-        # MCP protocol overhead: JSON-RPC envelope parsing (~25ms)
-        mcp_overhead_ms = 25.0 if self.protocol == "mcp" else 0.0
-        total_latency   = round(latency_ms + tool_exec_ms + mcp_overhead_ms, 2)
-
-        exec_ok = (
-            tool_result is not None
-            and isinstance(tool_result, dict)
-            and "error" not in tool_result
-        ) if tool_result is not None else False
-
-        return LLMResponse(
-            provider=self.provider,
-            tool_called=tool_name,
-            tool_args=tool_args,
-            raw_text=raw_text,
-            latency_ms=total_latency,
-            prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             success=is_correct and exec_ok,
             tool_result=tool_result,
             tool_exec_ms=tool_exec_ms,
         )
 
-    def _mock_call_internal(self, task_type: str, prompt: str) -> LLMResponse:
-        """Runs the original mock path — used as fallback for non-GPT-4o providers."""
-        latency = _sample_latency(self.provider, self.rng)
-        accuracy_threshold = _ACCURACY_PROFILES[self.protocol][self.provider]
-        is_correct = self.rng.random() < accuracy_threshold
-
-        if task_type not in _CORRECT_TOOL_MAP:
-            pt, ct = _count_dynamic_tokens(self.protocol, prompt or task_type, "unknown", {}, None)
-            return LLMResponse(
-                provider=self.provider, tool_called=None, tool_args={},
-                raw_text=f"Unknown task type: {task_type}",
-                latency_ms=latency, prompt_tokens=pt, completion_tokens=ct,
-                success=False, error=f"Task type '{task_type}' not in test suite",
-            )
-
-        if is_correct:
-            tool_name, tool_args = _CORRECT_TOOL_MAP[task_type]
-        else:
-            tool_name, tool_args = _HALLUCINATION_MAP[task_type]
-
-        tool_result, tool_exec_ms = _execute_server_tool(tool_name, tool_args)
-        mcp_overhead_ms = 25.0 if (self.protocol == "mcp" and tool_exec_ms > 0) else 0.0
-        total_latency   = round(latency + tool_exec_ms + mcp_overhead_ms, 2)
-        pt, ct = _count_dynamic_tokens(self.protocol, prompt or f"Handle task: {task_type}", tool_name, tool_args, tool_result)
-        exec_ok = (
-            tool_result is not None and isinstance(tool_result, dict) and "error" not in tool_result
-        ) if tool_result is not None else True
-        return LLMResponse(
-            provider=self.provider, tool_called=tool_name, tool_args=tool_args,
-            raw_text=f"I'll call {tool_name} to handle this.",
-            latency_ms=total_latency, prompt_tokens=pt, completion_tokens=ct,
-            success=is_correct and exec_ok, tool_result=tool_result, tool_exec_ms=tool_exec_ms,
+    def _real_call(self, task_type: str, prompt: str) -> LLMResponse:
         """
         Real API call via OpenAI GPT-4o with native function/tool calling.
 
@@ -532,10 +364,6 @@ class MockLLMClient:
         Token counts come from the real usage object returned by the API.
         Latency is real wall-clock time.
         """
-        if self.provider != LLMProvider.GPT4O:
-            # Claude not yet wired; fall back to mock for non-GPT-4o providers
-            return self._mock_call_internal(task_type, prompt)
-
         api_key = os.environ.get("OPENAI_API_KEY", "")
         if not api_key:
             raise RuntimeError(
@@ -593,12 +421,10 @@ class MockLLMClient:
             )
         latency_ms = round((time.perf_counter() - t0) * 1000, 2)
 
-        # Extract real token counts from the API response
         usage = response.usage
         prompt_tokens     = usage.prompt_tokens     if usage else 0
         completion_tokens = usage.completion_tokens if usage else 0
 
-        # Parse the tool call the model chose
         choice  = response.choices[0]
         message = choice.message
         tool_calls = message.tool_calls or []
@@ -612,19 +438,15 @@ class MockLLMClient:
                 tool_args = {}
             raw_text = f"I'll call {tool_name} to handle this."
         else:
-            # Model returned text instead of a tool call
             tool_name = None
             tool_args = {}
             raw_text  = message.content or ""
 
-        # Check correctness: did the model pick the right tool?
         expected_tool_name = _CORRECT_TOOL_MAP.get(task_type, (None,))[0]
         is_correct = (tool_name == expected_tool_name)
 
-        # Execute the chosen tool against real server.py
         tool_result, tool_exec_ms = _execute_server_tool(tool_name, tool_args) if tool_name else (None, 0.0)
 
-        # MCP protocol overhead: JSON-RPC envelope parsing (~25ms)
         mcp_overhead_ms = 25.0 if self.protocol == "mcp" else 0.0
         total_latency   = round(latency_ms + tool_exec_ms + mcp_overhead_ms, 2)
 
@@ -648,7 +470,7 @@ class MockLLMClient:
         )
 
     def _mock_call_internal(self, task_type: str, prompt: str) -> LLMResponse:
-        """Runs the original mock path — used as fallback for non-GPT-4o providers."""
+        """Runs the mock path when USE_REAL_APIS=False."""
         latency = _sample_latency(self.provider, self.rng)
         accuracy_threshold = _ACCURACY_PROFILES[self.protocol][self.provider]
         is_correct = self.rng.random() < accuracy_threshold
@@ -683,14 +505,8 @@ class MockLLMClient:
 
 
 # ── Factory helpers ─────────────────────────────────────────────────────────
-def make_mcp_claude(seed: int = None) -> MockLLMClient:
-    return MockLLMClient(LLMProvider.CLAUDE_35, protocol="mcp", seed=seed)
-
 def make_mcp_gpt4o(seed: int = None) -> MockLLMClient:
     return MockLLMClient(LLMProvider.GPT4O, protocol="mcp", seed=seed)
-
-def make_traditional_claude(seed: int = None) -> MockLLMClient:
-    return MockLLMClient(LLMProvider.CLAUDE_35, protocol="traditional", seed=seed)
 
 def make_traditional_gpt4o(seed: int = None) -> MockLLMClient:
     return MockLLMClient(LLMProvider.GPT4O, protocol="traditional", seed=seed)
@@ -736,16 +552,14 @@ def count_loc_to_swap_provider(protocol: str) -> dict:
 
 if __name__ == "__main__":
     # Quick sanity check
-    print("=== Mock LLM Layer — Self Test ===\n")
-    for provider_name, client in [
-        ("Claude 3.5 / MCP",         make_mcp_claude(seed=42)),
-        ("GPT-4o / MCP",             make_mcp_gpt4o(seed=42)),
-        ("Claude 3.5 / Traditional", make_traditional_claude(seed=42)),
-        ("GPT-4o / Traditional",     make_traditional_gpt4o(seed=42)),
+    print("=== Mock LLM Layer — Self Test (GPT-4o only) ===\n")
+    for label, client in [
+        ("GPT-4o / MCP",         make_mcp_gpt4o(seed=42)),
+        ("GPT-4o / Traditional", make_traditional_gpt4o(seed=42)),
     ]:
         resp = client.call("irrigation_check")
         status = "✅ CORRECT" if resp.success else "❌ WRONG"
-        print(f"{provider_name:<35} {status}  |  {resp.latency_ms:7.1f}ms  |  "
+        print(f"{label:<30} {status}  |  {resp.latency_ms:7.1f}ms  |  "
               f"{resp.prompt_tokens + resp.completion_tokens} tokens  |  tool={resp.tool_called}")
 
     print("\n=== Interoperability LoC Counts ===")

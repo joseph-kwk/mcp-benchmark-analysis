@@ -3,7 +3,7 @@ Multi-Step Task Scenarios for MCP vs Traditional Function Calling Comparison
 Defines complex agricultural workflows to test RQ1, RQ2, RQ3
 
 These scenarios are designed to evaluate:
-- RQ1: Interoperability across Claude 3.5 and GPT-4o
+- RQ1: Interoperability — MCP requires zero code changes to swap LLM providers (GPT-4o benchmark)
 - RQ2: Latency overhead of MCP protocol 
 - RQ3: Task accuracy in multi-step reasoning chains
 """

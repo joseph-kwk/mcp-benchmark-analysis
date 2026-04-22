@@ -43,7 +43,7 @@ class PerformanceMetrics:
 class InteroperabilityMetrics:
     """RQ1: Cross-LLM compatibility measurements"""
     protocol_type: str         # "mcp" or "traditional"
-    llm_provider: str         # "claude_3.5" or "gpt4o"
+    llm_provider: str         # "gpt4o"
     scenario_id: str          # Test scenario
     code_changes_required: int # Lines of code needed to port (0 = perfect compatibility)
     setup_complexity: int     # Setup steps required (1-10 scale)
@@ -460,7 +460,7 @@ if __name__ == "__main__":
     collector = MetricsCollector()
     
     # Simulate a benchmarking session
-    session_id = collector.start_session(protocol_type="mcp", llm_provider="claude_3.5")
+    session_id = collector.start_session(protocol_type="mcp", llm_provider="gpt4o")
     
     # Record some test metrics
     collector.record_performance("S1", 1, 150.5, 25.0, 100, 1)

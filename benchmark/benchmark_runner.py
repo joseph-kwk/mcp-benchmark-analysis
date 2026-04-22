@@ -47,7 +47,7 @@ class ExperimentalController:
         self.statistical_analyzer = StatisticalAnalyzer(results_dir)
         
         # Test configurations
-        self.llm_providers = ["claude_3.5", "gpt4o"]  # RQ1: Cross-LLM compatibility
+        self.llm_providers = ["gpt4o"]         # GPT-4o via real OpenAI API
         self.protocol_types = ["mcp", "traditional"]   # Core comparison
         
         print(f"Experimental Controller initialized:")
@@ -73,8 +73,8 @@ class ExperimentalController:
         
         # Get all test scenarios
         scenarios = BenchmarkScenarios.get_all_scenarios()
-        print(f"Testing {len(scenarios)} scenarios across {len(self.llm_providers)} LLM providers")
-        print(f"Total test cases: {len(scenarios) * len(self.llm_providers) * len(self.protocol_types) * self.iterations}")
+        print(f"Testing {len(scenarios)} scenarios with GPT-4o (MCP + Traditional)")
+        print(f"Total test cases: {len(scenarios) * len(self.protocol_types) * self.iterations}")
         
         # Run experiments for each configuration combination
         for llm_provider in self.llm_providers:
@@ -421,13 +421,9 @@ class MCPTester:
     Executes benchmark scenarios through the MCP protocol path.
     Uses mock_llm.MockLLMClient in mock mode; swap USE_REAL_APIS=true for real calls.
     """
-    def __init__(self, llm_provider: str = "claude_3.5", seed: int = None):
+    def __init__(self, llm_provider: str = "gpt4o", seed: int = None):
         from mock_llm import LLMProvider, MockLLMClient
-        provider_enum = (
-            LLMProvider.CLAUDE_35 if "claude" in llm_provider.lower()
-            else LLMProvider.GPT4O
-        )
-        self.client = MockLLMClient(provider_enum, protocol="mcp", seed=seed)
+        self.client = MockLLMClient(LLMProvider.GPT4O, protocol="mcp", seed=seed)
         self.llm_provider = llm_provider
 
     def run_scenario(self, task_type: str, prompt: str = ""):
@@ -443,11 +439,7 @@ class TraditionalTester:
     """
     def __init__(self, llm_provider: str = "gpt4o", seed: int = None):
         from mock_llm import LLMProvider, MockLLMClient
-        provider_enum = (
-            LLMProvider.CLAUDE_35 if "claude" in llm_provider.lower()
-            else LLMProvider.GPT4O
-        )
-        self.client = MockLLMClient(provider_enum, protocol="traditional", seed=seed)
+        self.client = MockLLMClient(LLMProvider.GPT4O, protocol="traditional", seed=seed)
         self.llm_provider = llm_provider
 
     def run_scenario(self, task_type: str, prompt: str = ""):
