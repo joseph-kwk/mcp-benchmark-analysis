@@ -1,0 +1,247 @@
+ 271            RESUME                   0
+
+ 282            LOAD_GLOBAL              0 (USE_REAL_APIS)
+                TO_BOOL
+                POP_JUMP_IF_FALSE       17 (to L1)
+
+ 283            LOAD_FAST                0 (self)
+                LOAD_ATTR                3 (_real_call + NULL|self)
+                LOAD_FAST_LOAD_FAST     18 (task_type, prompt)
+                CALL                     2
+                RETURN_VALUE
+
+ 286    L1:     LOAD_GLOBAL              5 (_sample_latency + NULL)
+                LOAD_FAST                0 (self)
+                LOAD_ATTR                6 (provider)
+                LOAD_FAST                0 (self)
+                LOAD_ATTR                8 (rng)
+                CALL                     2
+                STORE_FAST               3 (latency)
+
+ 289            LOAD_GLOBAL              0 (USE_REAL_APIS)
+                TO_BOOL
+                POP_JUMP_IF_FALSE       25 (to L2)
+
+ 290            LOAD_GLOBAL             10 (time)
+                LOAD_ATTR               12 (sleep)
+                PUSH_NULL
+                LOAD_FAST                3 (latency)
+                LOAD_CONST               1 (1000.0)
+                BINARY_OP               11 (/)
+                CALL                     1
+                POP_TOP
+
+ 293    L2:     LOAD_GLOBAL             14 (_ACCURACY_PROFILES)
+                LOAD_FAST                0 (self)
+                LOAD_ATTR               16 (protocol)
+                BINARY_SUBSCR
+                LOAD_FAST                0 (self)
+                LOAD_ATTR                6 (provider)
+                BINARY_SUBSCR
+                STORE_FAST               4 (accuracy_threshold)
+
+ 294            LOAD_FAST                0 (self)
+                LOAD_ATTR                8 (rng)
+                LOAD_ATTR               19 (random + NULL|self)
+                CALL                     0
+                LOAD_FAST                4 (accuracy_threshold)
+                COMPARE_OP               2 (<)
+                STORE_FAST               5 (is_correct)
+
+ 296            LOAD_FAST                1 (task_type)
+                LOAD_GLOBAL             20 (_CORRECT_TOOL_MAP)
+                CONTAINS_OP              1
+                POP_JUMP_IF_FALSE       69 (to L4)
+
+ 297            LOAD_GLOBAL             23 (_count_dynamic_tokens + NULL)
+
+ 298            LOAD_FAST                0 (self)
+                LOAD_ATTR               16 (protocol)
+                LOAD_FAST                2 (prompt)
+                COPY                     1
+                TO_BOOL
+                POP_JUMP_IF_TRUE         2 (to L3)
+                POP_TOP
+                LOAD_FAST                1 (task_type)
+        L3:     LOAD_CONST               2 ('unknown')
+                BUILD_MAP                0
+                LOAD_CONST               3 (None)
+
+ 297            CALL                     5
+                UNPACK_SEQUENCE          2
+                STORE_FAST_STORE_FAST  103 (prompt_tokens, completion_tokens)
+
+ 300            LOAD_GLOBAL             25 (LLMResponse + NULL)
+
+ 301            LOAD_FAST                0 (self)
+                LOAD_ATTR                6 (provider)
+                LOAD_CONST               3 (None)
+                BUILD_MAP                0
+
+ 302            LOAD_CONST               4 ('Unknown task type: ')
+                LOAD_FAST                1 (task_type)
+                FORMAT_SIMPLE
+                BUILD_STRING             2
+
+ 303            LOAD_FAST_LOAD_FAST     54 (latency, prompt_tokens)
+
+ 304            LOAD_FAST                7 (completion_tokens)
+                LOAD_CONST               5 (False)
+
+ 305            LOAD_CONST               6 ("Task type '")
+                LOAD_FAST                1 (task_type)
+                FORMAT_SIMPLE
+                LOAD_CONST               7 ("' not in test suite")
+                BUILD_STRING             3
+
+ 300            LOAD_CONST               8 (('provider', 'tool_called', 'tool_args', 'raw_text', 'latency_ms', 'prompt_tokens', 'completion_tokens', 'success', 'error'))
+                CALL_KW                  9
+                RETURN_VALUE
+
+ 308    L4:     LOAD_FAST                5 (is_correct)
+                TO_BOOL
+                POP_JUMP_IF_FALSE       18 (to L5)
+
+ 309            LOAD_GLOBAL             20 (_CORRECT_TOOL_MAP)
+                LOAD_FAST                1 (task_type)
+                BINARY_SUBSCR
+                UNPACK_SEQUENCE          2
+                STORE_FAST_STORE_FAST  137 (tool_name, tool_args)
+
+ 310            LOAD_CONST               9 ("I'll call ")
+                LOAD_FAST                8 (tool_name)
+                FORMAT_SIMPLE
+                LOAD_CONST              10 (' to handle this request.')
+                BUILD_STRING             3
+                STORE_FAST              10 (raw_text)
+                JUMP_FORWARD            17 (to L6)
+
+ 313    L5:     LOAD_GLOBAL             26 (_HALLUCINATION_MAP)
+                LOAD_FAST                1 (task_type)
+                BINARY_SUBSCR
+                UNPACK_SEQUENCE          2
+                STORE_FAST_STORE_FAST  137 (tool_name, tool_args)
+
+ 314            LOAD_CONST               9 ("I'll call ")
+                LOAD_FAST                8 (tool_name)
+                FORMAT_SIMPLE
+                LOAD_CONST              10 (' to handle this request.')
+                BUILD_STRING             3
+                STORE_FAST              10 (raw_text)
+
+ 319    L6:     LOAD_GLOBAL             29 (_execute_server_tool + NULL)
+                LOAD_FAST_LOAD_FAST    137 (tool_name, tool_args)
+                CALL                     2
+                UNPACK_SEQUENCE          2
+                STORE_FAST_STORE_FAST  188 (tool_result, tool_exec_ms)
+
+ 320            LOAD_FAST                0 (self)
+                LOAD_ATTR               16 (protocol)
+                LOAD_CONST              11 ('mcp')
+                COMPARE_OP              88 (bool(==))
+                POP_JUMP_IF_FALSE        8 (to L7)
+                LOAD_FAST               12 (tool_exec_ms)
+                LOAD_CONST              12 (0)
+                COMPARE_OP             148 (bool(>))
+                POP_JUMP_IF_FALSE        2 (to L7)
+                LOAD_CONST              13 (25.0)
+                JUMP_FORWARD             1 (to L8)
+        L7:     LOAD_CONST              14 (0.0)
+        L8:     STORE_FAST              13 (mcp_overhead_ms)
+
+ 321            LOAD_GLOBAL             31 (round + NULL)
+                LOAD_FAST_LOAD_FAST     60 (latency, tool_exec_ms)
+                BINARY_OP                0 (+)
+                LOAD_FAST               13 (mcp_overhead_ms)
+                BINARY_OP                0 (+)
+                LOAD_CONST              15 (2)
+                CALL                     2
+                STORE_FAST              14 (total_latency)
+
+ 326            LOAD_GLOBAL             23 (_count_dynamic_tokens + NULL)
+
+ 327            LOAD_FAST                0 (self)
+                LOAD_ATTR               16 (protocol)
+
+ 328            LOAD_FAST                2 (prompt)
+                COPY                     1
+                TO_BOOL
+                POP_JUMP_IF_TRUE         5 (to L9)
+                POP_TOP
+                LOAD_CONST              16 ('Handle task: ')
+                LOAD_FAST                1 (task_type)
+                FORMAT_SIMPLE
+                BUILD_STRING             2
+
+ 329    L9:     LOAD_FAST                8 (tool_name)
+
+ 330            LOAD_FAST                9 (tool_args)
+
+ 331            LOAD_FAST               11 (tool_result)
+
+ 326            CALL                     5
+                UNPACK_SEQUENCE          2
+                STORE_FAST_STORE_FAST  103 (prompt_tokens, completion_tokens)
+
+ 340            LOAD_FAST               11 (tool_result)
+                POP_JUMP_IF_NONE        39 (to L11)
+
+ 337            LOAD_FAST               11 (tool_result)
+                LOAD_CONST               3 (None)
+                IS_OP                    1
+                COPY                     1
+                TO_BOOL
+                POP_JUMP_IF_FALSE       28 (to L10)
+                POP_TOP
+
+ 338            LOAD_GLOBAL             33 (isinstance + NULL)
+                LOAD_FAST               11 (tool_result)
+                LOAD_GLOBAL             34 (dict)
+                CALL                     2
+
+ 337            COPY                     1
+                TO_BOOL
+                POP_JUMP_IF_FALSE        5 (to L10)
+                POP_TOP
+
+ 339            LOAD_CONST              17 ('error')
+                LOAD_FAST               11 (tool_result)
+                CONTAINS_OP              1
+
+  --   L10:     JUMP_FORWARD             1 (to L12)
+
+ 340   L11:     LOAD_CONST              18 (True)
+
+ 336   L12:     STORE_FAST              15 (exec_ok)
+
+ 342            LOAD_GLOBAL             25 (LLMResponse + NULL)
+
+ 343            LOAD_FAST                0 (self)
+                LOAD_ATTR                6 (provider)
+
+ 344            LOAD_FAST                8 (tool_name)
+
+ 345            LOAD_FAST                9 (tool_args)
+
+ 346            LOAD_FAST               10 (raw_text)
+
+ 347            LOAD_FAST               14 (total_latency)
+
+ 348            LOAD_FAST                6 (prompt_tokens)
+
+ 349            LOAD_FAST                7 (completion_tokens)
+
+ 350            LOAD_FAST                5 (is_correct)
+                COPY                     1
+                TO_BOOL
+                POP_JUMP_IF_FALSE        2 (to L13)
+                POP_TOP
+                LOAD_FAST               15 (exec_ok)
+
+ 351   L13:     LOAD_FAST               11 (tool_result)
+
+ 352            LOAD_FAST               12 (tool_exec_ms)
+
+ 342            LOAD_CONST              19 (('provider', 'tool_called', 'tool_args', 'raw_text', 'latency_ms', 'prompt_tokens', 'completion_tokens', 'success', 'tool_result', 'tool_exec_ms'))
+                CALL_KW                 10
+                RETURN_VALUE

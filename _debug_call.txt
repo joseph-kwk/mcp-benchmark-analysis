@@ -1,0 +1,83 @@
+    def call(self, task_type: str, prompt: str = "") -> LLMResponse:
+        """
+        Simulate a full round-trip LLM API call.
+
+        Args:
+            task_type: Key from _CORRECT_TOOL_MAP (e.g. "irrigation_check")
+            prompt: The user prompt text — token count is computed from its real length
+
+        Returns:
+            LLMResponse with latency, tokens, tool call decision
+        """
+        if USE_REAL_APIS:
+            return self._real_call(task_type, prompt)
+
+        # Simulate network + model latency
+        latency = _sample_latency(self.provider, self.rng)
+        # Only actually wait in real-API mode; in mock mode the value is recorded
+        # but we don't burn real time sleeping through 1000+ ms per trial.
+        if USE_REAL_APIS:
+            time.sleep(latency / 1000.0)
+
+        # Determine accuracy: does the model pick the right tool?
+        accuracy_threshold = _ACCURACY_PROFILES[self.protocol][self.provider]
+        is_correct = self.rng.random() < accuracy_threshold
+
+        if task_type not in _CORRECT_TOOL_MAP:
+            prompt_tokens, completion_tokens = _count_dynamic_tokens(
+                self.protocol, prompt or task_type, "unknown", {}, None
+            )
+            return LLMResponse(
+                provider=self.provider, tool_called=None, tool_args={},
+                raw_text=f"Unknown task type: {task_type}",
+                latency_ms=latency, prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens, success=False,
+                error=f"Task type '{task_type}' not in test suite"
+            )
+
+        if is_correct:
+            tool_name, tool_args = _CORRECT_TOOL_MAP[task_type]
+            raw_text = f"I'll call {tool_name} to handle this request."
+        else:
+            # Simulate hallucination / schema mismatch
+            tool_name, tool_args = _HALLUCINATION_MAP[task_type]
+            raw_text = f"I'll call {tool_name} to handle this request."
+
+        # Execute the chosen tool against real server.py functions.
+        # Protocol overhead: MCP wraps calls in a JSON-RPC envelope (~25 ms);
+        # Traditional calls the function directly with no protocol layer.
+        tool_result, tool_exec_ms = _execute_server_tool(tool_name, tool_args)
+        mcp_overhead_ms = 25.0 if (self.protocol == "mcp" and tool_exec_ms > 0) else 0.0
+        total_latency   = round(latency + tool_exec_ms + mcp_overhead_ms, 2)
+
+        # Token counts: computed from the ACTUAL payload text, not sampled from
+        # a fixed distribution.  A longer prompt → more prompt tokens; a verbose
+        # tool response → more completion tokens.  Context-dependent.
+        prompt_tokens, completion_tokens = _count_dynamic_tokens(
+            self.protocol,
+            prompt or f"Handle task: {task_type}",
+            tool_name,
+            tool_args,
+            tool_result,
+        )
+
+        # A trial truly succeeds only if the LLM chose the right tool AND
+        # the server executed it without an error.
+        exec_ok = (
+            tool_result is not None
+            and isinstance(tool_result, dict)
+            and "error" not in tool_result
+        ) if tool_result is not None else True  # fall back to mock-only verdict
+
+        return LLMResponse(
+            provider=self.provider,
+            tool_called=tool_name,
+            tool_args=tool_args,
+            raw_text=raw_text,
+            latency_ms=total_latency,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            success=is_correct and exec_ok,
+            tool_result=tool_result,
+            tool_exec_ms=tool_exec_ms,
+        )
