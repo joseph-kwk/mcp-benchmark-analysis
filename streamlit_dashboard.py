@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "benchmark"))
 from mock_llm import (
     MockLLMClient, LLMProvider,
     make_mcp_gpt4o, make_traditional_gpt4o,
-    count_loc_to_swap_provider,
+    count_loc_to_swap_provider, USE_REAL_APIS,
 )
 
 try:
@@ -343,7 +343,15 @@ m4.metric("MCP Latency",    f"{mcp_lat:.0f}ms",
 m5.metric("LoC (Legacy)",   f"{loc_trad} lines")
 m6.metric("LoC (MCP)",      f"{loc_mcp} lines",  delta=f"-{loc_trad - loc_mcp}", delta_color="normal")
 st.caption("RQ3 -> Accuracy (m1 vs m2)  |  RQ2 -> Latency (m3 vs m4)  |  RQ1 -> Interoperability LoC (m5 vs m6)")
-st.markdown("""
+if USE_REAL_APIS:
+    st.markdown("""
+<div class="info-banner" style="background:#f0fdf4;border-color:#86efac;color:#166534;">
+  ✅ <b>Live GPT-4o data</b> (USE_REAL_APIS=true). Accuracy, latency, and token counts are
+  real measurements from the OpenAI API. Each trial above represents an actual API call.
+  The LoC interoperability metric is verified from actual source code.
+</div>""", unsafe_allow_html=True)
+else:
+    st.markdown("""
 <div class="info-banner">
   Data source: mock simulation (USE_REAL_APIS not enabled). Accuracy rates, latency distributions,
   and token counts are derived from published benchmarks (Anthropic/OpenAI docs + MCP spec).

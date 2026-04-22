@@ -242,6 +242,18 @@ _CORRECT_TOOL_MAP = {
     "pump_stop":          ("activate_irrigation",    {"field_id": "Field_C", "action": "stop"}),
 }
 
+# Descriptive prompts for each task — used by _real_call so GPT-4o has enough
+# context to select the correct tool. Mock mode ignores these.
+_TASK_PROMPTS = {
+    "irrigation_check":  "Field C soil moisture is critically low at 8%, well below the 20% threshold. Please activate the irrigation system for Field C for 45 minutes.",
+    "field_status":      "What is the current soil moisture level and health status of Field A?",
+    "weather_forecast":  "Call the weather forecast tool to get a 3-day forecast. Use location='farm' and days=3.",
+    "recommend_action":  "Field A soil moisture is at 12%. Based on this reading, should I irrigate Field A? Provide an irrigation recommendation.",
+    "log_sensor":        "Record a soil moisture sensor reading of 28.0 percent for Field B's moisture sensor.",
+    "crop_schedule":     "What is the full planting and harvest schedule for corn crops this season?",
+    "pump_stop":         "Irrigation for Field C is complete. Stop the irrigation pump for Field C now.",
+}
+
 # Wrong tool calls that hallucinating models might make (for traditional failures)
 _HALLUCINATION_MAP = {
     "irrigation_check":   ("get_weather_forecast",   {"location": "farm"}),         # wrong tool
@@ -398,9 +410,10 @@ class MockLLMClient:
                 }
             }]
 
+        user_prompt = prompt or _TASK_PROMPTS.get(task_type, f"Handle task: {task_type}")
         messages = [
             {"role": "system", "content": _SYSTEM_HEADER},
-            {"role": "user",   "content": prompt or f"Handle task: {task_type}"},
+            {"role": "user",   "content": user_prompt},
         ]
 
         t0 = time.perf_counter()
@@ -409,7 +422,7 @@ class MockLLMClient:
                 model="gpt-4o",
                 messages=messages,
                 tools=tools,
-                tool_choice="auto",
+                tool_choice="required",
                 temperature=0,
             )
         except Exception as exc:
