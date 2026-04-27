@@ -727,6 +727,164 @@ with tab2:
   </div>
 </div>""", unsafe_allow_html=True)
 
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── Step 6: Controls Explained ─────────────────────────────────────────────
+    st.markdown("""
+<div class="tour-step tour-step-1" style="border-top:4px solid #6366f1;">
+<div class="tour-step-n" style="color:#6366f1;">Step 6 of 6  ·  Bonus</div>
+<div class="tour-step-title" style="color:#312e81;">⚙️ Every Control, Demystified</div>
+<div class="tour-step-body">
+  Your advisor asked — so here is a precise breakdown of what every button
+  and setting actually does under the hood.
+</div>
+</div>""", unsafe_allow_html=True)
+
+    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+
+    ctrl_a, ctrl_b, ctrl_c = st.columns(3)
+
+    with ctrl_a:
+        st.markdown("""
+<div style="background:#fafbff;border:1.5px solid #c7d2fe;border-radius:14px;
+            padding:20px 18px;height:100%;">
+  <div style="font-size:.72em;font-weight:800;text-transform:uppercase;
+              letter-spacing:.09em;color:#6366f1;margin-bottom:8px;">Scenario Dropdown</div>
+  <div style="font-size:1.05em;font-weight:700;color:#0f172a;margin-bottom:10px;">
+    📋 What changes when you pick a different scenario?
+  </div>
+  <div style="font-size:.85em;color:#334155;line-height:1.75;">
+    <span style="color:#166534;font-weight:700;">Changes instantly:</span><br>
+    &nbsp;• Purple-bordered field card (active focus field)<br>
+    &nbsp;• Scenario description card in Section 2<br>
+    &nbsp;• Expected tool + correct arguments<br>
+    &nbsp;• The prompt sent to GPT-4o on next Run<br><br>
+    <span style="color:#991b1b;font-weight:700;">Does NOT change:</span><br>
+    &nbsp;• Trial history — stays accumulated<br>
+    &nbsp;• Field moisture levels<br>
+    &nbsp;• Rolling accuracy chart data<br>
+  </div>
+  <div style="background:#ede9fe;border-radius:8px;padding:10px 12px;
+              margin-top:12px;font-size:.82em;color:#3730a3;">
+    💡 <strong>Tip:</strong> Run 10+ trials on each of the 5 scenarios separately
+    to compare how accuracy differs per task type — some tasks are harder
+    to disambiguate than others.
+  </div>
+</div>""", unsafe_allow_html=True)
+
+    with ctrl_b:
+        st.markdown("""
+<div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:14px;
+            padding:20px 18px;height:100%;">
+  <div style="font-size:.72em;font-weight:800;text-transform:uppercase;
+              letter-spacing:.09em;color:#166534;margin-bottom:8px;">Simulation Controls</div>
+  <div style="font-size:1.05em;font-weight:700;color:#0f172a;margin-bottom:10px;">
+    🌱 Three buttons — two very different things
+  </div>
+  <div style="font-size:.85em;color:#334155;line-height:1.8;">
+
+    <span style="background:#fef9c3;color:#92400e;padding:2px 8px;border-radius:6px;
+                 font-weight:700;font-family:monospace;">⏩ Simulate Tick</span><br>
+    <span style="color:#92400e;font-weight:700;">LOCAL ONLY — zero server calls.</span><br>
+    Subtracts 0.5–1.5% moisture from every field in browser memory only.
+    One tick ≈ 1 hour of natural evaporation.
+    Use 5–10 ticks to push fields below 10% (Critical) before running
+    the benchmark to create realistic stress conditions.<br>
+    <em>Floor: 3% — fields can't drop below this.</em><br><br>
+
+    <span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:6px;
+                 font-weight:700;font-family:monospace;">📡 Fetch Live Readings</span><br>
+    <span style="color:#166534;font-weight:700;">REAL SERVER CALL.</span><br>
+    Calls <code>get_field_status()</code> on server.py for all 4 fields
+    and overwrites the cards with live data. This is the exact same call
+    GPT-4o makes during a benchmark trial.<br><br>
+
+    <span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:6px;
+                 font-weight:700;font-family:monospace;">💧 Irrigate</span><br>
+    <span style="color:#991b1b;font-weight:700;">REAL SERVER CALL.</span><br>
+    Calls <code>activate_irrigation(field, start, 30)</code> and adds ~20% moisture.
+  </div>
+</div>""", unsafe_allow_html=True)
+
+    with ctrl_c:
+        st.markdown("""
+<div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:14px;
+            padding:20px 18px;height:100%;">
+  <div style="font-size:.72em;font-weight:800;text-transform:uppercase;
+              letter-spacing:.09em;color:#c2410c;margin-bottom:8px;">Trials Per Run Slider</div>
+  <div style="font-size:1.05em;font-weight:700;color:#0f172a;margin-bottom:10px;">
+    🎯 Why 10? How many should you run?
+  </div>
+  <div style="font-size:.85em;color:#334155;line-height:1.75;">
+    <strong>Why the default is 10:</strong><br>
+    10 is a quick demo — it finishes in ~3 seconds and gives a rough first look
+    at accuracy differences. But 10 trials means each result carries ±10%
+    uncertainty — barely enough to see a trend.<br><br>
+    <strong>What the numbers mean:</strong>
+  </div>
+  <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 10px;
+              margin-top:8px;font-size:.82em;align-items:center;">
+    <div style="background:#fee2e2;border-radius:6px;padding:4px 10px;
+                font-weight:700;color:#991b1b;text-align:center;">10</div>
+    <div style="color:#475569;">Quick demo. Rolling avg is jagged. ±10% noise.</div>
+    <div style="background:#fef9c3;border-radius:6px;padding:4px 10px;
+                font-weight:700;color:#92400e;text-align:center;">30</div>
+    <div style="color:#475569;">Minimum for a smooth rolling chart. ±3.3% noise.</div>
+    <div style="background:#dcfce7;border-radius:6px;padding:4px 10px;
+                font-weight:700;color:#166534;text-align:center;">50</div>
+    <div style="color:#475569;">Max per click. Good for one scenario deep-dive.</div>
+    <div style="background:#dbeafe;border-radius:6px;padding:4px 10px;
+                font-weight:700;color:#1e40af;text-align:center;">∞</div>
+    <div style="color:#475569;">No total cap — click Run multiple times to accumulate
+    hundreds. History persists until you click Clear.</div>
+  </div>
+  <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;
+              padding:10px 12px;margin-top:12px;font-size:.82em;color:#92400e;">
+    📊 <strong>For the paper:</strong> 50 trials per scenario × 5 scenarios = 250 data points.
+    That gives p &lt; 0.05 statistical significance if the accuracy gap is ≥ 8%.
+  </div>
+</div>""", unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── One-trial anatomy ──────────────────────────────────────────────────────
+    st.markdown("""
+<div style="background:#0f172a;border-radius:14px;padding:20px 24px;color:white;">
+  <div style="font-size:.8em;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+              color:#94a3b8;margin-bottom:12px;">What happens inside ONE trial (both protocols run simultaneously)</div>
+  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;
+              align-items:center;font-size:.78em;text-align:center;">
+    <div style="background:#1e3a5f;border-radius:8px;padding:10px 6px;border:1px solid #334155;">
+      <div style="font-size:1.4em">🎬</div>
+      <div style="font-weight:700;margin:4px 0;">Scenario prompt</div>
+      <div style="color:#94a3b8;">Same text sent to both protocols</div>
+    </div>
+    <div style="color:#6366f1;font-weight:800;font-size:1.3em">→</div>
+    <div style="background:#1e3a5f;border-radius:8px;padding:10px 6px;border:1px solid #334155;">
+      <div style="font-size:1.4em">⚙️</div>
+      <div style="font-weight:700;margin:4px 0;">GPT-4o called</div>
+      <div style="color:#94a3b8;">MCP: full 7-tool manifest<br>Trad: 1-tool schema only</div>
+    </div>
+    <div style="color:#6366f1;font-weight:800;font-size:1.3em">→</div>
+    <div style="background:#1e3a5f;border-radius:8px;padding:10px 6px;border:1px solid #334155;">
+      <div style="font-size:1.4em">🌾</div>
+      <div style="font-weight:700;margin:4px 0;">server.py called</div>
+      <div style="color:#94a3b8;">Correct tool executed<br>Real latency measured</div>
+    </div>
+    <div style="color:#6366f1;font-weight:800;font-size:1.3em">→</div>
+    <div style="background:#1e3a5f;border-radius:8px;padding:10px 6px;border:1px solid #334155;">
+      <div style="font-size:1.4em">📊</div>
+      <div style="font-weight:700;margin:4px 0;">Recorded</div>
+      <div style="color:#94a3b8;">Pass/Fail, latency ms,<br>token count logged</div>
+    </div>
+  </div>
+  <div style="margin-top:12px;font-size:.78em;color:#64748b;">
+    In mock mode, GPT-4o selection is simulated using accuracy rates
+    (MCP=94%, Traditional=82%) with seeded randomness for reproducibility.
+    Real server.py tools execute either way — latency is real wall-clock time.
+  </div>
+</div>""", unsafe_allow_html=True)
+
     st.markdown("""
 <div style="text-align:center;margin-top:20px;color:#94a3b8;font-size:.82em;">
   Switch to the <strong>🌾 Dashboard</strong> tab above to run the live benchmark →
@@ -743,10 +901,14 @@ with tab1:
     # ══════════════════════════════════════════════════════════════════════════════
     st.markdown('<div class="section-head">Section 1 — Digital Twin</div>', unsafe_allow_html=True)
     st.markdown("#### 🌱 Smart Farm Simulation")
-    st.caption(
-        "A live model of the farm's 4 fields. Soil moisture drains naturally over time. "
-        "The field highlighted with a purple border is the one being tested in the active scenario. "
-        "Use the simulation controls below to create realistic irrigation-needed conditions."
+    st.markdown(
+        "A live model of 4 fields with real-time soil moisture. "
+        "The **purple-bordered card** is the field under test in the active scenario. "
+        "&nbsp;·&nbsp; "
+        "**⏩ Simulate Tick** = local only (no server call) — drains moisture ~1%/tick to create test conditions. "
+        "&nbsp;·&nbsp; "
+        "**📡 Fetch Live Readings** = real `server.py` call.",
+        unsafe_allow_html=False,
     )
     
     # ── Simulation control buttons ─────────────────────────────────────────────────
@@ -798,8 +960,9 @@ with tab1:
             }
     
     st.caption(
-        f"Simulation ticks elapsed: **{st.session_state.sim_ticks}** — "
-        "🔴 Critical < 10% · 🟡 Needs Water < 20% · 🟢 Healthy ≥ 20%"
+        f"Simulation ticks: **{st.session_state.sim_ticks}** "
+        f"(≈ {st.session_state.sim_ticks} hour{'s' if st.session_state.sim_ticks != 1 else ''} of evaporation, local only — no server called) "
+        "· 🔴 Critical < 10%  · 🟡 Needs Water < 20%  · 🟢 Healthy ≥ 20%"
     )
     
     # ── Field cards ────────────────────────────────────────────────────────────────
