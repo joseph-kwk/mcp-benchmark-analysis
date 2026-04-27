@@ -430,7 +430,7 @@ task_info = TASK_SCENARIOS[task_key]
 st.markdown("## 🌾 MCP Agriculture Benchmark")
 st.caption(
     "Evaluating the Model Context Protocol for AI tool integration in smart irrigation  ·  "
-    "Spring 2026 Senior Project  ·  Southwestern College"
+    "Senior project"
 )
 
 api_pill = "🟢 Live GPT-4o" if USE_REAL_APIS else "🟡 Mock Simulation"
@@ -1222,7 +1222,7 @@ with tab1:
              "API format — swapping requires rewriting all of them.",
     )
     m6.metric(
-        "LoC (MCP)", f"{loc_mcp} lines", delta=f"-{loc_trad - loc_mcp}", delta_color="normal",
+        "LoC (MCP)", f"{loc_mcp} lines", delta=f"-{loc_trad - loc_mcp}", delta_color="inverse",
         help="Lines of code to swap providers in an MCP system. MCP uses provider-agnostic "
              "JSON-RPC 2.0. Changing the model = updating one config value. "
              "This is the core RQ1 interoperability finding.",
@@ -1475,4 +1475,4 @@ with tab1:
                  "and server response strings.",
         )
     
-    st.caption("Spring 2026 Senior Project  ·  Southwestern College  ·  Joseph Kasongo")
+    st.caption("Senior project  ·  Joseph Kasongo")
