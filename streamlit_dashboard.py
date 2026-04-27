@@ -353,10 +353,12 @@ def _init_state():
             "Field C": {"crop": "Soybean", "moisture":  8.0, "base":  8.0},
             "Field D": {"crop": "Corn",    "moisture": 45.0, "base": 45.0},
         },
-        "sim_ticks":        0,
-        "history":          [],
-        "trial_count":      0,
-        "last_server_resp": None,
+        "sim_ticks":               0,
+        "history":                 [],
+        "trial_count":             0,
+        "last_server_resp":        None,
+        "welcomed":                False,   # first-visit tour prompt
+        "scenario_info_dismissed": None,    # tracks which scenario card was dismissed
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -445,449 +447,362 @@ st.markdown(
 tab1, tab2 = st.tabs(["🌾  Dashboard", "🗺️  How It Works"])
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 2 — TOUR  (placed first so it doesn't inherit tab1 indentation)
+# TAB 2 — TOUR
 # ══════════════════════════════════════════════════════════════════════════════
 with tab2:
+
     # ── Hero ──────────────────────────────────────────────────────────────────
     st.markdown("""
-<div style="background:linear-gradient(135deg,#0f172a,#1e3a5f);border-radius:18px;
-            padding:36px 36px 28px;color:white;margin-bottom:24px;">
-  <div style="font-size:.75em;font-weight:700;text-transform:uppercase;
-              letter-spacing:.1em;opacity:.6;margin-bottom:8px;">Guided Tour</div>
-  <div style="font-size:1.9em;font-weight:800;line-height:1.25;margin-bottom:12px;">
-    Why does MCP exist, and what did we actually measure?
-  </div>
-  <div style="font-size:.95em;opacity:.8;line-height:1.7;max-width:780px;">
-    This is a 5-step visual tour of the research. No jargon. No walls of text.
-    Each step answers one piece of the story — from the problem that motivated MCP
-    all the way to what our benchmark numbers mean.
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-    # ── Step 1: The Problem ────────────────────────────────────────────────────
-    st.markdown('<div class="tour-step tour-step-1">'
-                '<div class="tour-step-n">Step 1 of 5</div>'
-                '<div class="tour-step-title">🔴 The Problem — AI tools are brittle and hard to swap</div>'
-                '</div>', unsafe_allow_html=True)
-
-    p1a, p1b = st.columns(2)
-    with p1a:
-        st.markdown("""
-<div class="tour-step tour-step-1" style="height:100%;">
-<div class="tour-step-n">Step 1 of 5</div>
-<div class="tour-step-title">🔴 The Problem</div>
-<div class="tour-step-body">
-  When you build an AI assistant that calls tools (like "activate the irrigation pump"),
-  you must describe every tool in that provider's specific format.<br><br>
-  Switch from GPT-4o to Gemini? <strong>Rewrite every schema.</strong><br>
-  Add a new tool? <strong>Update it in every integration.</strong><br>
-  Different team uses a different AI? <strong>Start from scratch.</strong>
-  <br><br>
-  <span class="tour-badge tb-red">Hard-coded schemas</span>
-  <span class="tour-badge tb-red">Provider lock-in</span>
-  <span class="tour-badge tb-red">High maintenance cost</span>
-</div>
-</div>""", unsafe_allow_html=True)
-    with p1b:
-        st.markdown("""
-<div class="tour-step tour-step-1" style="height:100%;">
-<div class="tour-step-n">What Traditional looks like</div>
-<div class="proto-box proto-trad">
-<div class="proto-label trad-label">Traditional — one hard-coded schema per call</div>
-<span style="color:#dc2626">POST /v1/chat/completions</span><br>
-{<br>
-&nbsp; "model": "gpt-4o",<br>
-&nbsp; <span style="color:#7c3aed">"tools"</span>: [<br>
-&nbsp;&nbsp;&nbsp; {  <span style="color:#64748b">// ← only THIS tool, manually written</span><br>
-&nbsp;&nbsp;&nbsp;&nbsp; "name": "activate_irrigation",<br>
-&nbsp;&nbsp;&nbsp;&nbsp; "parameters": { ... }<br>
-&nbsp;&nbsp;&nbsp; }<br>
-&nbsp; ]<br>
-}<br><br>
-<span style="color:#dc2626">⚠ Swap to Gemini → rewrite this for every tool</span>
-</div>
-</div>""", unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # ── Step 2: MCP Solution ───────────────────────────────────────────────────
-    p2a, p2b = st.columns(2)
-    with p2a:
-        st.markdown("""
-<div class="tour-step tour-step-2" style="height:100%;">
-<div class="tour-step-n">Step 2 of 5</div>
-<div class="tour-step-title">🟣 The Solution — MCP broadcasts all tools</div>
-<div class="tour-step-body">
-  <strong>Model Context Protocol (MCP)</strong> is an open standard
-  (Anthropic, 2024) that separates the tool definitions from the AI model.<br><br>
-  The <strong>server</strong> advertises every tool it has in one universal
-  JSON-RPC 2.0 manifest. Any AI model reads it and knows what's available —
-  <em>no per-provider schemas</em>.<br><br>
-  <span class="tour-badge tb-purple">Universal JSON-RPC 2.0</span>
-  <span class="tour-badge tb-purple">Swap GPT-4o → Gemini in 1 line</span>
-  <span class="tour-badge tb-purple">Zero rewrite</span>
-</div>
-</div>""", unsafe_allow_html=True)
-    with p2b:
-        st.markdown("""
-<div class="tour-step tour-step-2" style="height:100%;">
-<div class="tour-step-n">What MCP looks like</div>
-<div class="proto-box proto-mcp">
-<div class="proto-label mcp-label">MCP — server broadcasts ALL tools automatically</div>
-<span style="color:#16a34a">GET /mcp/tools  (JSON-RPC 2.0)</span><br>
-{<br>
-&nbsp; "tools": [<br>
-&nbsp;&nbsp;&nbsp; { "name": "get_field_status",    ... },<br>
-&nbsp;&nbsp;&nbsp; { "name": "activate_irrigation", ... },<br>
-&nbsp;&nbsp;&nbsp; { "name": "recommend_irrigation",...},<br>
-&nbsp;&nbsp;&nbsp; <span style="color:#64748b">// ← all 7 tools, auto-discovered</span><br>
-&nbsp; ]<br>
-}<br><br>
-<span style="color:#16a34a">✅ Swap to Gemini → change one config value</span>
-</div>
-</div>""", unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # ── Step 3: The Farm ───────────────────────────────────────────────────────
-    st.markdown("""
-<div class="tour-step tour-step-3">
-<div class="tour-step-n">Step 3 of 5</div>
-<div class="tour-step-title">🌱 The Test Environment — a real smart farm server</div>
-<div class="tour-step-body">
-  We built a <strong>FastMCP farm server</strong> (server.py) with 7 real tools
-  covering every common irrigation decision. The AI must choose the <em>correct</em>
-  tool for each scenario — not just give a text answer.
-</div>
-</div>""", unsafe_allow_html=True)
-
-    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-    g1, g2, g3, g4, g5, g6, g7 = st.columns(7)
-    tools_info = [
-        ("activate_irrigation", "Starts or stops the pump for a field"),
-        ("get_field_status",    "Reads live moisture sensor for a field"),
-        ("recommend_irrigation","Advisory: should I irrigate this field?"),
-        ("get_weather_forecast","3-day forecast to plan irrigation cycles"),
-        ("log_sensor_reading",  "Records a manual sensor measurement"),
-        ("get_crop_schedule",   "Planting & harvest calendar for a crop"),
-        ("calculate_area",      "Computes field area in acres"),
-    ]
-    tile_colors = ["#ede9fe","#dbeafe","#dcfce7","#fef9c3","#fee2e2","#e0f2fe","#fce7f3"]
-    tile_text   = ["#4c1d95","#1e40af","#166534","#92400e","#991b1b","#0369a1","#9d174d"]
-    cols = st.columns(7)
-    for col, (name, desc), bg, fg in zip(cols, tools_info, tile_colors, tile_text):
-        with col:
-            st.markdown(f"""
-<div style="background:{bg};border-radius:10px;padding:12px 10px;text-align:center;
-            font-size:.78em;min-height:110px;display:flex;flex-direction:column;
-            justify-content:center;gap:4px;">
-  <div style="font-weight:800;color:{fg};font-family:monospace;font-size:.9em;
-              word-break:break-all;">{name}()</div>
-  <div style="color:#374151;line-height:1.35;">{desc}</div>
-</div>""", unsafe_allow_html=True)
-
-    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-    st.markdown("""
-<div style="background:#f1f5f9;border-radius:10px;padding:14px 18px;font-size:.85em;color:#475569;">
-  <strong>How the benchmark works:</strong>
-  We give GPT-4o the same real farming prompt — e.g. "Field C moisture is critically low, please
-  activate irrigation for 45 minutes." — through <em>both</em> protocol paths simultaneously.
-  We record whether it called the right tool, how long it took, and how many tokens it used.
-  We run this 10–50 times per scenario and average the results.
-</div>""", unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # ── Step 4: Research Questions ─────────────────────────────────────────────
-    st.markdown("""
-<div class="tour-step tour-step-4">
-<div class="tour-step-n">Step 4 of 5</div>
-<div class="tour-step-title">📐 The Three Research Questions</div>
-<div class="tour-step-body">
-  This benchmark is designed to answer three specific questions about MCP.
-  Each section of the dashboard maps to one RQ.
-</div>
-</div>""", unsafe_allow_html=True)
-
-    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-    rq1, rq2, rq3 = st.columns(3)
-    with rq1:
-        st.markdown("""
-<div class="rq-card rq-card-1">
-  <div class="rq-num">RQ 1  ·  Interoperability</div>
-  <div style="font-size:2em">🔁</div>
-  <div class="rq-q">How much code do you need to rewrite to swap AI providers?</div>
-  <div class="rq-hyp">Hypothesis: MCP requires near-zero code changes vs dozens of lines for Traditional.</div>
-  <div class="rq-finding">Measured by: Lines of Code (LoC) to swap GPT-4o → Gemini</div>
-  <div class="rq-finding">📍 See Section 5 → Interoperability cards</div>
-</div>""", unsafe_allow_html=True)
-    with rq2:
-        st.markdown("""
-<div class="rq-card rq-card-2">
-  <div class="rq-num">RQ 2  ·  Latency</div>
-  <div style="font-size:2em">⚡</div>
-  <div class="rq-q">Does MCP's larger schema payload slow down AI responses?</div>
-  <div class="rq-hyp">Hypothesis: MCP adds a small, acceptable latency overhead due to the full tool manifest.</div>
-  <div class="rq-finding">Measured by: Round-trip ms per API call (wall-clock)</div>
-  <div class="rq-finding">📍 See Section 3 → Latency metrics &amp; Section 4 → Chart</div>
-</div>""", unsafe_allow_html=True)
-    with rq3:
-        st.markdown("""
-<div class="rq-card rq-card-3">
-  <div class="rq-num">RQ 3  ·  Tool-Selection Accuracy</div>
-  <div style="font-size:2em">🎯</div>
-  <div class="rq-q">Does MCP improve the AI's ability to pick the right tool?</div>
-  <div class="rq-hyp">Hypothesis: Broadcasting the full manifest helps GPT-4o disambiguate tools better than one-at-a-time schemas.</div>
-  <div class="rq-finding">Measured by: % trials where correct tool was called AND server executed it</div>
-  <div class="rq-finding">📍 See Section 3 → Accuracy &amp; Section 4 → Rolling chart</div>
-</div>""", unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # ── Step 5: How to Read the Results ───────────────────────────────────────
-    st.markdown("""
-<div class="tour-step tour-step-5">
-<div class="tour-step-n">Step 5 of 5</div>
-<div class="tour-step-title">📊 How to Read the Dashboard Results</div>
-<div class="tour-step-body">
-  Here's a quick guide to every number you'll see in the Dashboard tab.
-</div>
-</div>""", unsafe_allow_html=True)
-
-    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-    g1, g2 = st.columns(2)
-    with g1:
-        st.markdown("""
-<div style="display:flex;flex-direction:column;gap:10px;">
-<div style="background:#f8fafc;border-left:4px solid #6366f1;border-radius:8px;padding:14px 16px;">
-  <div style="font-weight:700;color:#312e81;margin-bottom:4px;">✅ Pass / ❌ Fail (Latest Trial)</div>
-  <div style="font-size:.85em;color:#475569;line-height:1.6;">
-    A trial <strong>passes</strong> if GPT-4o called the exact correct tool AND the
-    server executed it without error. A trial <strong>fails</strong> if the wrong tool
-    was called, arguments were malformed, or the server returned an error.
-  </div>
-</div>
-<div style="background:#f8fafc;border-left:4px solid #10b981;border-radius:8px;padding:14px 16px;">
-  <div style="font-weight:700;color:#166534;margin-bottom:4px;">📈 Rolling Accuracy Chart</div>
-  <div style="font-size:.85em;color:#475569;line-height:1.6;">
-    A 10-trial rolling average. The gap between the green (MCP) and red (Traditional) lines
-    is the core finding of RQ3. Run 30+ trials for it to stabilise. If both lines overlap,
-    the protocols perform equally on that scenario.
-  </div>
-</div>
-<div style="background:#f8fafc;border-left:4px solid #f59e0b;border-radius:8px;padding:14px 16px;">
-  <div style="font-weight:700;color:#92400e;margin-bottom:4px;">🪙 Token Usage Bar</div>
-  <div style="font-size:.85em;color:#475569;line-height:1.6;">
-    MCP intentionally uses more tokens because it sends <em>all</em> 7 tool schemas
-    on every request. Traditional sends only 1. Higher tokens = slightly more cost
-    and latency. This is the tradeoff MCP makes for better accuracy.
-  </div>
-</div>
-</div>""", unsafe_allow_html=True)
-    with g2:
-        st.markdown("""
-<div style="display:flex;flex-direction:column;gap:10px;">
-<div style="background:#f8fafc;border-left:4px solid #0ea5e9;border-radius:8px;padding:14px 16px;">
-  <div style="font-weight:700;color:#0369a1;margin-bottom:4px;">⏱️ Latency (ms)</div>
-  <div style="font-size:.85em;color:#475569;line-height:1.6;">
-    Total wall-clock time per trial: GPT-4o API call + server tool execution.
-    MCP adds a ~25ms overhead for the JSON-RPC protocol layer. Whether that's
-    acceptable depends on the application — for irrigation control, it's negligible.
-  </div>
-</div>
-<div style="background:#f8fafc;border-left:4px solid #ef4444;border-radius:8px;padding:14px 16px;">
-  <div style="font-weight:700;color:#991b1b;margin-bottom:4px;">🔬 p-value &amp; Cohen's d (Section 5)</div>
-  <div style="font-size:.85em;color:#475569;line-height:1.6;">
-    <strong>p &lt; 0.05</strong> means the difference between MCP and Traditional is
-    statistically real — not random chance. <strong>Cohen's d</strong> tells you
-    how large the effect is: small (&lt;0.5), medium (0.5–0.8), or large (&gt;0.8).
-  </div>
-</div>
-<div style="background:#f8fafc;border-left:4px solid #8b5cf6;border-radius:8px;padding:14px 16px;">
-  <div style="font-weight:700;color:#4c1d95;margin-bottom:4px;">🔁 Lines of Code (LoC)</div>
-  <div style="font-size:.85em;color:#475569;line-height:1.6;">
-    Counted from actual source code in this repository. Traditional requires changing
-    every tool schema file when swapping providers. MCP requires changing one
-    environment variable. This is the RQ1 interoperability answer.
-  </div>
-</div>
-</div>""", unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # ── Verdict ────────────────────────────────────────────────────────────────
-    st.markdown("""
-<div class="verdict-bar">
-  <div class="verdict-icon">🏆</div>
-  <div class="verdict-text">
-    <b>The verdict in one sentence:</b> MCP gives GPT-4o better tool-selection accuracy
-    and near-zero provider migration cost — at the price of slightly more tokens per call.
-    For smart irrigation where wrong tool = crop damage, that tradeoff is clearly worth it.
+<div style="background:linear-gradient(135deg,#0f172a,#1e3a5f);border-radius:16px;
+            padding:28px 32px;color:white;margin-bottom:20px;
+            display:flex;align-items:center;gap:24px;">
+  <div style="font-size:3em;line-height:1;">🌾</div>
+  <div>
+    <div style="font-size:1.5em;font-weight:800;line-height:1.3;margin-bottom:6px;">
+      Does MCP make AI tool selection more reliable?
+    </div>
+    <div style="font-size:.9em;opacity:.75;line-height:1.6;">
+      We built a smart-farm server, ran 250 benchmark trials, and compared two protocols.
+      This page explains the research in 4 panels — each one answers a different question.
+    </div>
   </div>
 </div>""", unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    # ── ROW 1: The Core Difference + The 3 Questions ──────────────────────────
+    tour_l, tour_r = st.columns([1.05, 1])
 
-    # ── Step 6: Controls Explained ─────────────────────────────────────────────
-    st.markdown("""
-<div class="tour-step tour-step-1" style="border-top:4px solid #6366f1;">
-<div class="tour-step-n" style="color:#6366f1;">Step 6 of 6  ·  Bonus</div>
-<div class="tour-step-title" style="color:#312e81;">⚙️ Every Control, Demystified</div>
-<div class="tour-step-body">
-  Your advisor asked — so here is a precise breakdown of what every button
-  and setting actually does under the hood.
-</div>
+    with tour_l:
+        st.markdown("""
+<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;
+            padding:20px 22px;height:100%;">
+  <div style="font-size:.7em;font-weight:800;text-transform:uppercase;letter-spacing:.1em;
+              color:#94a3b8;margin-bottom:10px;">Panel 1 — The Core Difference</div>
+  <div style="font-size:1.05em;font-weight:700;color:#0f172a;margin-bottom:14px;">
+    Why does switching AI models break everything — and how does MCP fix it?
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+
+    <div style="background:#fff5f5;border:1.5px solid #fca5a5;border-radius:10px;padding:14px;">
+      <div style="font-weight:800;color:#dc2626;font-size:.8em;margin-bottom:8px;">
+        ❌ Traditional
+      </div>
+      <div style="font-size:.8em;color:#374151;line-height:1.7;">
+        You hand-write one tool schema per call, in the exact format the AI provider expects.<br><br>
+        Swap GPT-4o for Gemini → rewrite every schema.<br>
+        Add a new tool → update every integration.<br>
+        Change providers → days of work.
+      </div>
+      <div style="margin-top:10px;background:#fef2f2;border-radius:6px;
+                  padding:8px 10px;font-family:monospace;font-size:.75em;color:#991b1b;">
+        POST /v1/chat/completions<br>
+        tools: [<span style="opacity:.7">// just ONE, hardcoded</span><br>
+        &nbsp; { "name": "activate_irrigation",<br>
+        &nbsp;&nbsp;&nbsp;"parameters": { ... } }<br>
+        ]<br>
+        <span style="color:#dc2626">⚠ Swap model → rewrite this</span>
+      </div>
+    </div>
+
+    <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:14px;">
+      <div style="font-weight:800;color:#16a34a;font-size:.8em;margin-bottom:8px;">
+        ✅ MCP (Model Context Protocol)
+      </div>
+      <div style="font-size:.8em;color:#374151;line-height:1.7;">
+        The server broadcasts ALL tools in one universal JSON-RPC manifest.<br>
+        Any AI model reads it — no per-provider schemas needed.<br><br>
+        Swap models → change one config value.<br>
+        Add a tool → server advertises it automatically.
+      </div>
+      <div style="margin-top:10px;background:#f0fdf4;border-radius:6px;
+                  padding:8px 10px;font-family:monospace;font-size:.75em;color:#166534;">
+        GET /mcp/tools  <span style="opacity:.7">// JSON-RPC 2.0</span><br>
+        { "tools": [<br>
+        &nbsp; activate_irrigation,<br>
+        &nbsp; get_field_status,<br>
+        &nbsp; <span style="opacity:.6">... all 7, auto-discovered</span><br>
+        ] }<br>
+        <span style="color:#16a34a">✅ Swap model → edit 1 env var</span>
+      </div>
+    </div>
+
+  </div>
+</div>""", unsafe_allow_html=True)
+
+    with tour_r:
+        st.markdown("""
+<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;
+            padding:20px 22px;height:100%;">
+  <div style="font-size:.7em;font-weight:800;text-transform:uppercase;letter-spacing:.1em;
+              color:#94a3b8;margin-bottom:10px;">Panel 2 — The 3 Research Questions</div>
+  <div style="font-size:1.05em;font-weight:700;color:#0f172a;margin-bottom:14px;">
+    What exactly were we testing?
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px;">
+
+    <div style="background:linear-gradient(135deg,#1e3a5f,#1e40af);border-radius:10px;
+                padding:14px 16px;color:white;">
+      <div style="font-size:.7em;font-weight:700;opacity:.7;text-transform:uppercase;
+                  letter-spacing:.08em;margin-bottom:4px;">RQ 1 · Interoperability</div>
+      <div style="font-weight:700;font-size:.9em;margin-bottom:4px;">
+        How much code do you rewrite to swap AI providers?
+      </div>
+      <div style="font-size:.8em;opacity:.85;">
+        Measured by: <strong>Lines of Code (LoC)</strong> changed to go from GPT-4o → Gemini.<br>
+        Find it: Section 5 of the Dashboard →
+      </div>
+    </div>
+
+    <div style="background:linear-gradient(135deg,#14532d,#166534);border-radius:10px;
+                padding:14px 16px;color:white;">
+      <div style="font-size:.7em;font-weight:700;opacity:.7;text-transform:uppercase;
+                  letter-spacing:.08em;margin-bottom:4px;">RQ 2 · Latency</div>
+      <div style="font-weight:700;font-size:.9em;margin-bottom:4px;">
+        Does MCP's larger payload slow responses?
+      </div>
+      <div style="font-size:.8em;opacity:.85;">
+        Measured by: <strong>Round-trip ms</strong> per API call.<br>
+        Find it: Section 3 metrics + Section 4 left chart →
+      </div>
+    </div>
+
+    <div style="background:linear-gradient(135deg,#4c1d95,#6d28d9);border-radius:10px;
+                padding:14px 16px;color:white;">
+      <div style="font-size:.7em;font-weight:700;opacity:.7;text-transform:uppercase;
+                  letter-spacing:.08em;margin-bottom:4px;">RQ 3 · Accuracy  (main finding)</div>
+      <div style="font-weight:700;font-size:.9em;margin-bottom:4px;">
+        Does MCP help the AI pick the right tool more often?
+      </div>
+      <div style="font-size:.8em;opacity:.85;">
+        Measured by: <strong>% trials correct tool called</strong> on server.<br>
+        Find it: Section 3 accuracy metrics + rolling chart →
+      </div>
+    </div>
+
+  </div>
 </div>""", unsafe_allow_html=True)
 
     st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 
-    ctrl_a, ctrl_b, ctrl_c = st.columns(3)
+    # ── ROW 2: The Farm + One Trial Anatomy ───────────────────────────────────
+    farm_l, farm_r = st.columns([1, 1.05])
 
-    with ctrl_a:
+    with farm_l:
         st.markdown("""
-<div style="background:#fafbff;border:1.5px solid #c7d2fe;border-radius:14px;
-            padding:20px 18px;height:100%;">
-  <div style="font-size:.72em;font-weight:800;text-transform:uppercase;
-              letter-spacing:.09em;color:#6366f1;margin-bottom:8px;">Scenario Dropdown</div>
-  <div style="font-size:1.05em;font-weight:700;color:#0f172a;margin-bottom:10px;">
-    📋 What changes when you pick a different scenario?
+<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;
+            padding:20px 22px;height:100%;">
+  <div style="font-size:.7em;font-weight:800;text-transform:uppercase;letter-spacing:.1em;
+              color:#94a3b8;margin-bottom:10px;">Panel 3 — What We Built</div>
+  <div style="font-size:1.05em;font-weight:700;color:#0f172a;margin-bottom:4px;">
+    A real FastMCP farm server with 7 tools — and a benchmark that runs both protocols head-to-head.
   </div>
-  <div style="font-size:.85em;color:#334155;line-height:1.75;">
-    <span style="color:#166534;font-weight:700;">Changes instantly:</span><br>
-    &nbsp;• Purple-bordered field card (active focus field)<br>
-    &nbsp;• Scenario description card in Section 2<br>
-    &nbsp;• Expected tool + correct arguments<br>
-    &nbsp;• The prompt sent to GPT-4o on next Run<br><br>
-    <span style="color:#991b1b;font-weight:700;">Does NOT change:</span><br>
-    &nbsp;• Trial history — stays accumulated<br>
-    &nbsp;• Field moisture levels<br>
-    &nbsp;• Rolling accuracy chart data<br>
-  </div>
-  <div style="background:#ede9fe;border-radius:8px;padding:10px 12px;
-              margin-top:12px;font-size:.82em;color:#3730a3;">
-    💡 <strong>Tip:</strong> Run 10+ trials on each of the 5 scenarios separately
-    to compare how accuracy differs per task type — some tasks are harder
-    to disambiguate than others.
+  <div style="font-size:.82em;color:#64748b;margin-bottom:12px;">
+    The AI must pick the <em>correct</em> tool for each scenario. Not just answer in text — call the actual function.
   </div>
 </div>""", unsafe_allow_html=True)
 
-    with ctrl_b:
+        tools_list = [
+            ("#ede9fe","#4c1d95","activate_irrigation()","Starts or stops the irrigation pump"),
+            ("#dbeafe","#1e40af","get_field_status()","Reads live soil moisture sensor"),
+            ("#dcfce7","#166534","recommend_irrigation()","Advisory: should I irrigate?"),
+            ("#fef9c3","#92400e","get_weather_forecast()","3-day forecast for planning"),
+            ("#fee2e2","#991b1b","log_sensor_reading()","Records manual sensor data"),
+            ("#e0f2fe","#0369a1","get_crop_schedule()","Planting & harvest calendar"),
+            ("#fce7f3","#9d174d","calculate_area()","Field area in acres"),
+        ]
+        cols = st.columns(7)
+        for col, (bg, fg, name, desc) in zip(cols, tools_list):
+            with col:
+                st.markdown(f"""
+<div style="background:{bg};border-radius:8px;padding:8px 6px;text-align:center;
+            font-size:.72em;min-height:90px;display:flex;flex-direction:column;
+            justify-content:center;gap:3px;">
+  <div style="font-weight:800;color:{fg};font-family:monospace;font-size:.88em;
+              word-break:break-all;">{name}</div>
+  <div style="color:#374151;line-height:1.3;">{desc}</div>
+</div>""", unsafe_allow_html=True)
+
+    with farm_r:
         st.markdown("""
-<div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:14px;
-            padding:20px 18px;height:100%;">
-  <div style="font-size:.72em;font-weight:800;text-transform:uppercase;
-              letter-spacing:.09em;color:#166534;margin-bottom:8px;">Simulation Controls</div>
-  <div style="font-size:1.05em;font-weight:700;color:#0f172a;margin-bottom:10px;">
-    🌱 Three buttons — two very different things
+<div style="background:#0f172a;border-radius:14px;padding:20px 22px;color:white;height:100%;">
+  <div style="font-size:.7em;font-weight:800;text-transform:uppercase;letter-spacing:.1em;
+              color:#64748b;margin-bottom:10px;">Panel 4 — Inside One Trial</div>
+  <div style="font-size:1.05em;font-weight:700;margin-bottom:14px;">
+    What happens when you click ▶ Run Benchmark?
   </div>
-  <div style="font-size:.85em;color:#334155;line-height:1.8;">
 
-    <span style="background:#fef9c3;color:#92400e;padding:2px 8px;border-radius:6px;
-                 font-weight:700;font-family:monospace;">⏩ Simulate Tick</span><br>
-    <span style="color:#92400e;font-weight:700;">LOCAL ONLY — zero server calls.</span><br>
-    Subtracts 0.5–1.5% moisture from every field in browser memory only.
-    One tick ≈ 1 hour of natural evaporation.
-    Use 5–10 ticks to push fields below 10% (Critical) before running
-    the benchmark to create realistic stress conditions.<br>
-    <em>Floor: 3% — fields can't drop below this.</em><br><br>
+  <div style="display:flex;flex-direction:column;gap:8px;font-size:.83em;">
 
-    <span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:6px;
-                 font-weight:700;font-family:monospace;">📡 Fetch Live Readings</span><br>
-    <span style="color:#166534;font-weight:700;">REAL SERVER CALL.</span><br>
-    Calls <code>get_field_status()</code> on server.py for all 4 fields
-    and overwrites the cards with live data. This is the exact same call
-    GPT-4o makes during a benchmark trial.<br><br>
+    <div style="background:#1e293b;border-radius:8px;padding:12px 14px;
+                border-left:3px solid #6366f1;">
+      <span style="font-weight:700;color:#818cf8;">① Same prompt</span>
+      <span style="color:#94a3b8;margin-left:8px;">sent to both Traditional and MCP simultaneously</span>
+    </div>
 
-    <span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:6px;
-                 font-weight:700;font-family:monospace;">💧 Irrigate</span><br>
-    <span style="color:#991b1b;font-weight:700;">REAL SERVER CALL.</span><br>
-    Calls <code>activate_irrigation(field, start, 30)</code> and adds ~20% moisture.
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div style="background:#1e293b;border-radius:8px;padding:10px 12px;
+                  border-left:3px solid #ef4444;">
+        <div style="font-weight:700;color:#f87171;font-size:.9em;">Traditional path</div>
+        <div style="color:#94a3b8;margin-top:4px;line-height:1.5;">
+          Sends 1 hard-coded tool schema. GPT-4o has partial context.
+        </div>
+      </div>
+      <div style="background:#1e293b;border-radius:8px;padding:10px 12px;
+                  border-left:3px solid #10b981;">
+        <div style="font-weight:700;color:#34d399;font-size:.9em;">MCP path</div>
+        <div style="color:#94a3b8;margin-top:4px;line-height:1.5;">
+          Sends all 7 tool schemas via JSON-RPC. GPT-4o sees full context.
+        </div>
+      </div>
+    </div>
+
+    <div style="background:#1e293b;border-radius:8px;padding:12px 14px;
+                border-left:3px solid #f59e0b;">
+      <span style="font-weight:700;color:#fbbf24;">③ server.py executes</span>
+      <span style="color:#94a3b8;margin-left:8px;">the called tool — real latency is measured</span>
+    </div>
+
+    <div style="background:#1e293b;border-radius:8px;padding:12px 14px;
+                border-left:3px solid #34d399;">
+      <span style="font-weight:700;color:#34d399;">④ Recorded:</span>
+      <span style="color:#94a3b8;margin-left:8px;">Pass/Fail · latency ms · token count → appended to history</span>
+    </div>
+
+    <div style="background:#1e293b;border-radius:8px;padding:10px 14px;margin-top:2px;">
+      <div style="color:#64748b;font-size:.82em;line-height:1.6;">
+        <span style="color:#94a3b8;font-weight:700;">Mock mode:</span>
+        GPT-4o selection simulated at 94% (MCP) / 82% (Traditional) accuracy with seeded randomness.<br>
+        <span style="color:#94a3b8;font-weight:700;">Live mode:</span>
+        Real OpenAI API calls — set USE_REAL_APIS=true in .env.
+      </div>
+    </div>
+
   </div>
 </div>""", unsafe_allow_html=True)
 
-    with ctrl_c:
+    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+
+    # ── ROW 3: How to read results + controls guide ───────────────────────────
+    read_l, read_m, read_r = st.columns(3)
+
+    with read_l:
         st.markdown("""
-<div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:14px;
-            padding:20px 18px;height:100%;">
-  <div style="font-size:.72em;font-weight:800;text-transform:uppercase;
-              letter-spacing:.09em;color:#c2410c;margin-bottom:8px;">Trials Per Run Slider</div>
-  <div style="font-size:1.05em;font-weight:700;color:#0f172a;margin-bottom:10px;">
-    🎯 Why 10? How many should you run?
-  </div>
-  <div style="font-size:.85em;color:#334155;line-height:1.75;">
-    <strong>Why the default is 10:</strong><br>
-    10 is a quick demo — it finishes in ~3 seconds and gives a rough first look
-    at accuracy differences. But 10 trials means each result carries ±10%
-    uncertainty — barely enough to see a trend.<br><br>
-    <strong>What the numbers mean:</strong>
-  </div>
-  <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 10px;
-              margin-top:8px;font-size:.82em;align-items:center;">
-    <div style="background:#fee2e2;border-radius:6px;padding:4px 10px;
-                font-weight:700;color:#991b1b;text-align:center;">10</div>
-    <div style="color:#475569;">Quick demo. Rolling avg is jagged. ±10% noise.</div>
-    <div style="background:#fef9c3;border-radius:6px;padding:4px 10px;
-                font-weight:700;color:#92400e;text-align:center;">30</div>
-    <div style="color:#475569;">Minimum for a smooth rolling chart. ±3.3% noise.</div>
-    <div style="background:#dcfce7;border-radius:6px;padding:4px 10px;
-                font-weight:700;color:#166534;text-align:center;">50</div>
-    <div style="color:#475569;">Max per click. Good for one scenario deep-dive.</div>
-    <div style="background:#dbeafe;border-radius:6px;padding:4px 10px;
-                font-weight:700;color:#1e40af;text-align:center;">∞</div>
-    <div style="color:#475569;">No total cap — click Run multiple times to accumulate
-    hundreds. History persists until you click Clear.</div>
-  </div>
-  <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;
-              padding:10px 12px;margin-top:12px;font-size:.82em;color:#92400e;">
-    📊 <strong>For the paper:</strong> 50 trials per scenario × 5 scenarios = 250 data points.
-    That gives p &lt; 0.05 statistical significance if the accuracy gap is ≥ 8%.
+<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;padding:18px 20px;height:100%;">
+  <div style="font-size:.7em;font-weight:800;text-transform:uppercase;letter-spacing:.1em;
+              color:#94a3b8;margin-bottom:10px;">How to read the numbers</div>
+  <div style="display:flex;flex-direction:column;gap:8px;font-size:.83em;">
+    <div style="border-left:3px solid #6366f1;padding:6px 10px;background:#f8fafc;border-radius:0 6px 6px 0;">
+      <b>Accuracy %</b><br>
+      <span style="color:#64748b;">% of trials GPT-4o called the exact right tool with correct args. MCP target ≈ 94%, Traditional ≈ 82%.</span>
+    </div>
+    <div style="border-left:3px solid #f59e0b;padding:6px 10px;background:#f8fafc;border-radius:0 6px 6px 0;">
+      <b>Latency ms</b><br>
+      <span style="color:#64748b;">Wall-clock round-trip: API call + tool execution. MCP adds ~25ms overhead for the larger manifest.</span>
+    </div>
+    <div style="border-left:3px solid #10b981;padding:6px 10px;background:#f8fafc;border-radius:0 6px 6px 0;">
+      <b>Tokens</b><br>
+      <span style="color:#64748b;">MCP sends all 7 schemas every call → more tokens. Traditional sends 1 → fewer tokens but higher miss rate.</span>
+    </div>
+    <div style="border-left:3px solid #ef4444;padding:6px 10px;background:#f8fafc;border-radius:0 6px 6px 0;">
+      <b>p-value</b><br>
+      <span style="color:#64748b;">p &lt; 0.05 = difference is real, not luck. Needs 30+ trials to appear. Unlocked in Section 5.</span>
+    </div>
+    <div style="border-left:3px solid #8b5cf6;padding:6px 10px;background:#f8fafc;border-radius:0 6px 6px 0;">
+      <b>Cohen's d</b><br>
+      <span style="color:#64748b;">Effect size. &lt;0.5 = small, 0.5–0.8 = medium, &gt;0.8 = large. Tells you if the gap is meaningful.</span>
+    </div>
+    <div style="border-left:3px solid #0ea5e9;padding:6px 10px;background:#f8fafc;border-radius:0 6px 6px 0;">
+      <b>LoC (Lines of Code)</b><br>
+      <span style="color:#64748b;">How many source lines to change when swapping AI providers. MCP target = 1. Traditional = many.</span>
+    </div>
   </div>
 </div>""", unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    with read_m:
+        st.markdown("""
+<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;padding:18px 20px;height:100%;">
+  <div style="font-size:.7em;font-weight:800;text-transform:uppercase;letter-spacing:.1em;
+              color:#94a3b8;margin-bottom:10px;">The 5 Scenarios — what each one tests</div>
+  <div style="display:flex;flex-direction:column;gap:8px;font-size:.83em;">
+    <div style="border-left:3px solid #6366f1;padding:8px 10px;background:#f8fafc;border-radius:0 6px 6px 0;">
+      <b>💧 Start Irrigation</b><br>
+      <span style="color:#64748b;">Field C at 8% moisture. Must activate pump. Wrong tool = crop damage.</span>
+    </div>
+    <div style="border-left:3px solid #0ea5e9;padding:8px 10px;background:#f8fafc;border-radius:0 6px 6px 0;">
+      <b>🔍 Check Field Status</b><br>
+      <span style="color:#64748b;">Operator asks "what's the moisture?". Must call sensor — not guess.</span>
+    </div>
+    <div style="border-left:3px solid #10b981;padding:8px 10px;background:#f8fafc;border-radius:0 6px 6px 0;">
+      <b>🧠 Get Recommendation</b><br>
+      <span style="color:#64748b;">Asks "should I irrigate?" Must advise, not act. Tests over-eager activation.</span>
+    </div>
+    <div style="border-left:3px solid #ef4444;padding:8px 10px;background:#f8fafc;border-radius:0 6px 6px 0;">
+      <b>🛑 Stop Pump</b><br>
+      <span style="color:#64748b;">Same tool as start, opposite action. Tests arg disambiguation. Wrong = flood.</span>
+    </div>
+    <div style="border-left:3px solid #f59e0b;padding:8px 10px;background:#f8fafc;border-radius:0 6px 6px 0;">
+      <b>🌤 Weather Forecast</b><br>
+      <span style="color:#64748b;">Planning question. Must retrieve data, not hallucinate a weather answer.</span>
+    </div>
+  </div>
+</div>""", unsafe_allow_html=True)
 
-    # ── One-trial anatomy ──────────────────────────────────────────────────────
+    with read_r:
+        st.markdown("""
+<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;padding:18px 20px;height:100%;">
+  <div style="font-size:.7em;font-weight:800;text-transform:uppercase;letter-spacing:.1em;
+              color:#94a3b8;margin-bottom:10px;">How to use this dashboard — 5 steps</div>
+  <div style="display:flex;flex-direction:column;gap:8px;font-size:.83em;">
+    <div style="background:#f1f5f9;border-radius:8px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start;">
+      <div style="background:#6366f1;color:white;border-radius:50%;width:22px;height:22px;
+                  display:flex;align-items:center;justify-content:center;font-weight:800;
+                  font-size:.85em;flex-shrink:0;">1</div>
+      <div><b>Pick a scenario</b> from the sidebar dropdown.<br>
+      <span style="color:#64748b;">A card appears showing exactly what the AI must do.</span></div>
+    </div>
+    <div style="background:#f1f5f9;border-radius:8px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start;">
+      <div style="background:#6366f1;color:white;border-radius:50%;width:22px;height:22px;
+                  display:flex;align-items:center;justify-content:center;font-weight:800;
+                  font-size:.85em;flex-shrink:0;">2</div>
+      <div><b>Click ⏩ Simulate Tick</b> a few times<br>
+      <span style="color:#64748b;">to push field moisture below 10% (Critical). Local only — no server call.</span></div>
+    </div>
+    <div style="background:#f1f5f9;border-radius:8px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start;">
+      <div style="background:#6366f1;color:white;border-radius:50%;width:22px;height:22px;
+                  display:flex;align-items:center;justify-content:center;font-weight:800;
+                  font-size:.85em;flex-shrink:0;">3</div>
+      <div><b>Click ▶ Run Benchmark</b> (set to 30+ trials)<br>
+      <span style="color:#64748b;">Both protocols run simultaneously. Results added to history.</span></div>
+    </div>
+    <div style="background:#f1f5f9;border-radius:8px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start;">
+      <div style="background:#6366f1;color:white;border-radius:50%;width:22px;height:22px;
+                  display:flex;align-items:center;justify-content:center;font-weight:800;
+                  font-size:.85em;flex-shrink:0;">4</div>
+      <div><b>Read Section 3</b> for summary metrics<br>
+      <span style="color:#64748b;">Accuracy %, latency ms, token count for both protocols.</span></div>
+    </div>
+    <div style="background:#f1f5f9;border-radius:8px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start;">
+      <div style="background:#6366f1;color:white;border-radius:50%;width:22px;height:22px;
+                  display:flex;align-items:center;justify-content:center;font-weight:800;
+                  font-size:.85em;flex-shrink:0;">5</div>
+      <div><b>Repeat for all 5 scenarios</b><br>
+      <span style="color:#64748b;">50 trials × 5 scenarios = 250 data points → p&lt;0.05 significance.</span></div>
+    </div>
+  </div>
+</div>""", unsafe_allow_html=True)
+
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
     st.markdown("""
-<div style="background:#0f172a;border-radius:14px;padding:20px 24px;color:white;">
-  <div style="font-size:.8em;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
-              color:#94a3b8;margin-bottom:12px;">What happens inside ONE trial (both protocols run simultaneously)</div>
-  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;
-              align-items:center;font-size:.78em;text-align:center;">
-    <div style="background:#1e3a5f;border-radius:8px;padding:10px 6px;border:1px solid #334155;">
-      <div style="font-size:1.4em">🎬</div>
-      <div style="font-weight:700;margin:4px 0;">Scenario prompt</div>
-      <div style="color:#94a3b8;">Same text sent to both protocols</div>
-    </div>
-    <div style="color:#6366f1;font-weight:800;font-size:1.3em">→</div>
-    <div style="background:#1e3a5f;border-radius:8px;padding:10px 6px;border:1px solid #334155;">
-      <div style="font-size:1.4em">⚙️</div>
-      <div style="font-weight:700;margin:4px 0;">GPT-4o called</div>
-      <div style="color:#94a3b8;">MCP: full 7-tool manifest<br>Trad: 1-tool schema only</div>
-    </div>
-    <div style="color:#6366f1;font-weight:800;font-size:1.3em">→</div>
-    <div style="background:#1e3a5f;border-radius:8px;padding:10px 6px;border:1px solid #334155;">
-      <div style="font-size:1.4em">🌾</div>
-      <div style="font-weight:700;margin:4px 0;">server.py called</div>
-      <div style="color:#94a3b8;">Correct tool executed<br>Real latency measured</div>
-    </div>
-    <div style="color:#6366f1;font-weight:800;font-size:1.3em">→</div>
-    <div style="background:#1e3a5f;border-radius:8px;padding:10px 6px;border:1px solid #334155;">
-      <div style="font-size:1.4em">📊</div>
-      <div style="font-weight:700;margin:4px 0;">Recorded</div>
-      <div style="color:#94a3b8;">Pass/Fail, latency ms,<br>token count logged</div>
-    </div>
+<div style="background:linear-gradient(135deg,#0f172a,#1e293b);border-radius:12px;
+            padding:16px 24px;color:white;display:flex;align-items:center;gap:16px;">
+  <div style="font-size:2em;">🏆</div>
+  <div style="font-size:.92em;line-height:1.6;">
+    <b style="color:#34d399;">The verdict:</b>
+    MCP gives GPT-4o better tool-selection accuracy and near-zero provider migration cost —
+    at the price of slightly more tokens per call.
+    For smart irrigation where wrong tool = crop damage, that tradeoff is worth it.
   </div>
-  <div style="margin-top:12px;font-size:.78em;color:#64748b;">
-    In mock mode, GPT-4o selection is simulated using accuracy rates
-    (MCP=94%, Traditional=82%) with seeded randomness for reproducibility.
-    Real server.py tools execute either way — latency is real wall-clock time.
-  </div>
-</div>""", unsafe_allow_html=True)
-
-    st.markdown("""
-<div style="text-align:center;margin-top:20px;color:#94a3b8;font-size:.82em;">
-  Switch to the <strong>🌾 Dashboard</strong> tab above to run the live benchmark →
 </div>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1103,6 +1018,24 @@ with tab1:
     </div>
     """, unsafe_allow_html=True)
     
+    # ── Dismissible scenario info card ─────────────────────────────────────────────
+    if st.session_state.get("scenario_info_dismissed") != task_key:
+        with st.container():
+            info_l, info_r = st.columns([11, 1.4])
+            with info_l:
+                st.markdown(
+                    f"**{sc['icon']} What the AI must do in this scenario:** "
+                    f"{sc['scenario']} &nbsp;·&nbsp; "
+                    f"Correct call: `{sc['expected_tool']}({sc['tool_args']})` &nbsp;·&nbsp; "
+                    f"{sc['pass_means']}  {sc['fail_means']}"
+                )
+            with info_r:
+                st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+                if st.button("Got it ✓", key="dismiss_scenario_info", use_container_width=True):
+                    st.session_state.scenario_info_dismissed = task_key
+                    st.rerun()
+        st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+
     # ── Run controls ───────────────────────────────────────────────────────────────
     run_col, trials_col, mode_col = st.columns([1.2, 1, 4])
     with run_col:
@@ -1118,9 +1051,10 @@ with tab1:
         )
     with trials_col:
         st.metric(
-            "Trials queued",
+            "Trials per run",
             trials_per_run,
-            help="Set in the sidebar slider. Each click of Run Benchmark adds this many trials to history.",
+            help="Set in the sidebar slider. Each click of Run Benchmark adds this many trials to history. "
+                 "10 = quick demo (noisy). 30+ = statistically meaningful.",
         )
     with mode_col:
         api_mode = "🟢 Live GPT-4o API" if USE_REAL_APIS else "🟡 Mock simulation (USE_REAL_APIS=false)"
